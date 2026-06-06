@@ -6,7 +6,7 @@ import PrintReceipt from './PrintReceipt';
 import type { Complaint, HandleFormData } from '@/types/complaint';
 import { STATUS_OPTIONS, COMPLAINT_TYPES } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
-import { calculateOverdueInfo } from '@/utils/overdue';
+import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 import { getTemplatesByType, getTemplates } from '@/utils/replyTemplate';
 import type { ReplyTemplate } from '@/types/replyTemplate';
 
@@ -15,9 +15,10 @@ interface DetailModalProps {
   onClose: () => void;
   onHandle: (id: string, data: HandleFormData) => void;
   onEscalate: (id: string, reason: string) => void;
+  now?: Date;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, now }: DetailModalProps) {
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({
     status: 'pending',
@@ -32,8 +33,8 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate }
 
   const overdueInfo = useMemo(() => {
     if (!complaint) return null;
-    return calculateOverdueInfo(complaint);
-  }, [complaint]);
+    return calculateOverdueInfo(complaint, now);
+  }, [complaint, now]);
 
   useEffect(() => {
     if (complaint) {
@@ -169,7 +170,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate }
                 </div>
                 <div>
                   <span className="text-slate-500">处理时限：</span>
-                  <span className="text-slate-900 font-medium">{overdueInfo?.timeLimitHours || 0} 小时</span>
+                  <span className="text-slate-900 font-medium">{formatHours(overdueInfo?.timeLimitHours || 0)}</span>
                 </div>
                 {complaint.status !== 'replied' && (
                   <>
@@ -187,8 +188,8 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate }
                         overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
                       }`}>
                         {overdueInfo?.isOverdue
-                          ? `超期 ${overdueInfo.overdueHours} 小时`
-                          : `${overdueInfo?.remainingHours} 小时`}
+                          ? `超期 ${formatHours(overdueInfo.overdueHours)}`
+                          : formatHours(overdueInfo?.remainingHours || 0)}
                       </span>
                     </div>
                   </>

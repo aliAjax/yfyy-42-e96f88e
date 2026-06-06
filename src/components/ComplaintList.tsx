@@ -9,19 +9,20 @@ interface ComplaintListProps {
   complaints: Complaint[];
   onCardClick: (complaint: Complaint) => void;
   onExport?: (complaints: Complaint[]) => void;
+  now?: Date;
 }
 
 type TabType = 'all' | ComplaintStatus | 'overdue' | 'warning' | 'escalated';
 
-export default function ComplaintList({ complaints, onCardClick, onExport }: ComplaintListProps) {
+export default function ComplaintList({ complaints, onCardClick, onExport, now }: ComplaintListProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const overdueCount = complaints.filter(
-    (c) => c.status !== 'replied' && calculateOverdueInfo(c).isOverdue
+    (c) => c.status !== 'replied' && calculateOverdueInfo(c, now).isOverdue
   ).length;
   const warningCount = complaints.filter(
-    (c) => c.status !== 'replied' && calculateOverdueInfo(c).isWarning && !calculateOverdueInfo(c).isOverdue
+    (c) => c.status !== 'replied' && calculateOverdueInfo(c, now).isWarning && !calculateOverdueInfo(c, now).isOverdue
   ).length;
   const escalatedCount = complaints.filter(
     (c) => c.escalationRecords && c.escalationRecords.length > 0
@@ -42,10 +43,11 @@ export default function ComplaintList({ complaints, onCardClick, onExport }: Com
   const filteredComplaints = complaints
     .filter((c) => {
       if (activeTab === 'overdue') {
-        return c.status !== 'replied' && calculateOverdueInfo(c).isOverdue;
+        return c.status !== 'replied' && calculateOverdueInfo(c, now).isOverdue;
       }
       if (activeTab === 'warning') {
-        return c.status !== 'replied' && calculateOverdueInfo(c).isWarning && !calculateOverdueInfo(c).isOverdue;
+        const info = calculateOverdueInfo(c, now);
+        return c.status !== 'replied' && info.isWarning && !info.isOverdue;
       }
       if (activeTab === 'escalated') {
         return c.escalationRecords && c.escalationRecords.length > 0;
@@ -62,8 +64,8 @@ export default function ComplaintList({ complaints, onCardClick, onExport }: Com
       return true;
     })
     .sort((a, b) => {
-      const aOverdue = a.status !== 'replied' && calculateOverdueInfo(a).isOverdue;
-      const bOverdue = b.status !== 'replied' && calculateOverdueInfo(b).isOverdue;
+      const aOverdue = a.status !== 'replied' && calculateOverdueInfo(a, now).isOverdue;
+      const bOverdue = b.status !== 'replied' && calculateOverdueInfo(b, now).isOverdue;
       if (aOverdue && !bOverdue) return -1;
       if (!aOverdue && bOverdue) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -169,6 +171,7 @@ export default function ComplaintList({ complaints, onCardClick, onExport }: Com
             <ComplaintCard
               key={complaint.id}
               complaint={complaint}
+              now={now}
               onClick={() => onCardClick(complaint)}
             />
           ))

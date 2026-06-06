@@ -28,9 +28,16 @@ export default function Home() {
     type: 'success',
   });
 
-  const dashboardStats = useMemo(() => calculateDashboardStats(complaints), [complaints]);
-  const overdueCount = useMemo(() => calculateOverdueCount(complaints), [complaints]);
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState<Date>(new Date());
+
+  const dashboardStats = useMemo(
+    () => calculateDashboardStats(complaints, now),
+    [complaints, now]
+  );
+  const overdueCount = useMemo(
+    () => calculateOverdueCount(complaints, now),
+    [complaints, now]
+  );
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -51,7 +58,7 @@ export default function Home() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTick((t) => t + 1);
+      setNow(new Date());
     }, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -234,6 +241,7 @@ export default function Home() {
                 complaints={complaints}
                 onCardClick={setSelectedComplaint}
                 onExport={handleExport}
+                now={now}
               />
             </div>
           </div>
@@ -246,6 +254,7 @@ export default function Home() {
           onClose={() => setSelectedComplaint(null)}
           onHandle={handleComplaint}
           onEscalate={handleEscalate}
+          now={now}
         />
       )}
 

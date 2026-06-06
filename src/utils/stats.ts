@@ -59,15 +59,15 @@ export function calculateDailyTrend(complaints: Complaint[]): DailyTrendItem[] {
   }));
 }
 
-export function calculateOverdueStats(complaints: Complaint[]): OverdueCount {
-  return calculateOverdueCount(complaints);
+export function calculateOverdueStats(complaints: Complaint[], now?: Date): OverdueCount {
+  return calculateOverdueCount(complaints, now);
 }
 
-export function calculateDashboardStats(complaints: Complaint[]): DashboardStats {
+export function calculateDashboardStats(complaints: Complaint[], now?: Date): DashboardStats {
   return {
     total: complaints.length,
     statusCount: calculateStatusCount(complaints),
-    overdueCount: calculateOverdueStats(complaints),
+    overdueCount: calculateOverdueStats(complaints, now),
     typeRatio: calculateTypeRatio(complaints),
     sourceDistribution: calculateSourceDistribution(complaints),
     dailyTrend: calculateDailyTrend(complaints),

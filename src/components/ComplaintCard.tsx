@@ -1,15 +1,16 @@
 import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import type { Complaint } from '@/types/complaint';
-import { calculateOverdueInfo } from '@/utils/overdue';
+import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 
 interface ComplaintCardProps {
   complaint: Complaint;
   onClick: () => void;
+  now?: Date;
 }
 
-export default function ComplaintCard({ complaint, onClick }: ComplaintCardProps) {
-  const overdueInfo = calculateOverdueInfo(complaint);
+export default function ComplaintCard({ complaint, onClick, now }: ComplaintCardProps) {
+  const overdueInfo = calculateOverdueInfo(complaint, now);
 
   const getBorderClass = () => {
     if (overdueInfo.isOverdue) return 'border-red-400 ring-2 ring-red-100';
@@ -81,9 +82,9 @@ export default function ComplaintCard({ complaint, onClick }: ComplaintCardProps
             overdueInfo.isWarning ? 'text-amber-600 font-medium' : 'text-slate-400'
           }`}>
             {overdueInfo.isOverdue ? (
-              <>超期 {overdueInfo.overdueHours} 小时</>
+              <>超期 {formatHours(overdueInfo.overdueHours)}</>
             ) : (
-              <>剩余 {overdueInfo.remainingHours} 小时</>
+              <>剩余 {formatHours(overdueInfo.remainingHours)}</>
             )}
           </div>
         )}

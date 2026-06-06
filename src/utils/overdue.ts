@@ -76,7 +76,9 @@ export function getTimeLimitByTypeAndSource(type: string, source: string): { tim
   };
 }
 
-export function calculateOverdueInfo(complaint: Complaint): OverdueInfo {
+export function calculateOverdueInfo(complaint: Complaint, now?: Date): OverdueInfo {
+  const currentTime = now || new Date();
+
   if (complaint.status === 'replied') {
     return {
       isOverdue: false,
@@ -91,9 +93,8 @@ export function calculateOverdueInfo(complaint: Complaint): OverdueInfo {
 
   const { timeLimitHours, warningHours } = getTimeLimitByTypeAndSource(complaint.type, complaint.source);
   const receiveTime = new Date(complaint.receiveTime.replace(' ', 'T'));
-  const now = new Date();
   const deadline = new Date(receiveTime.getTime() + timeLimitHours * 60 * 60 * 1000);
-  const diffMs = deadline.getTime() - now.getTime();
+  const diffMs = deadline.getTime() - currentTime.getTime();
   const diffHours = diffMs / (1000 * 60 * 60);
 
   let level: OverdueLevel = 'normal';
@@ -127,13 +128,13 @@ export function isComplaintWarning(complaint: Complaint): boolean {
   return calculateOverdueInfo(complaint).isWarning;
 }
 
-export function calculateOverdueCount(complaints: Complaint[]): { total: number; overdue: number; warning: number } {
+export function calculateOverdueCount(complaints: Complaint[], now?: Date): { total: number; overdue: number; warning: number } {
   let overdue = 0;
   let warning = 0;
 
   complaints.forEach((c) => {
     if (c.status === 'replied') return;
-    const info = calculateOverdueInfo(c);
+    const info = calculateOverdueInfo(c, now);
     if (info.isOverdue) {
       overdue++;
     } else if (info.isWarning) {
@@ -163,4 +164,17 @@ export function generateTimeLimitRules(): TimeLimitRule[] {
     }
   }
   return rules;
+}
+
+export function formatHours(hours: number): string {
+  if (hours < 1) {
+    const minutes = Math.round(hours * 60);
+    return `${minutes} 分钟`;
+  }
+  const wholeHours = Math.floor(hours);
+  const decimal = hours - wholeHours;
+  if (decimal < 0.05) {
+    return `${wholeHours} 小时`;
+  }
+  return `${hours.toFixed(1)} 小时`;
 }
