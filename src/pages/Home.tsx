@@ -9,6 +9,7 @@ import ImportModal from '@/components/ImportModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
+import { exportComplaintsToCSV } from '@/utils/csvExport';
 import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus } from '@/types/complaint';
 
 const STORAGE_KEY = 'complaint_records';
@@ -83,6 +84,11 @@ export default function Home() {
     showToast(`成功导入 ${rows.length} 条诉求！`);
   };
 
+  const handleExport = (filteredComplaints: Complaint[]) => {
+    const result = exportComplaintsToCSV(filteredComplaints);
+    showToast(result.message, result.success ? 'success' : 'error');
+  };
+
   const handleComplaint = (id: string, data: HandleFormData) => {
     setComplaints((prev) =>
       prev.map((c) =>
@@ -141,6 +147,7 @@ export default function Home() {
               <ComplaintList
                 complaints={complaints}
                 onCardClick={setSelectedComplaint}
+                onExport={handleExport}
               />
             </div>
           </div>

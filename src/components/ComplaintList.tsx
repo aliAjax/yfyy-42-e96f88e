@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ListFilter } from 'lucide-react';
+import { Search, ListFilter, Download } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import type { Complaint, ComplaintStatus } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
@@ -7,11 +7,12 @@ import { STATUS_OPTIONS } from '@/types/complaint';
 interface ComplaintListProps {
   complaints: Complaint[];
   onCardClick: (complaint: Complaint) => void;
+  onExport?: (complaints: Complaint[]) => void;
 }
 
 type TabType = 'all' | ComplaintStatus;
 
-export default function ComplaintList({ complaints, onCardClick }: ComplaintListProps) {
+export default function ComplaintList({ complaints, onCardClick, onExport }: ComplaintListProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -41,12 +42,23 @@ export default function ComplaintList({ complaints, onCardClick }: ComplaintList
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
-      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-        <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-          <ListFilter className="w-4 h-4 text-blue-600" />
-          诉求列表
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">共 {complaints.length} 条记录</p>
+      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <ListFilter className="w-4 h-4 text-blue-600" />
+            诉求列表
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">共 {filteredComplaints.length} 条 / 总计 {complaints.length} 条</p>
+        </div>
+        {onExport && (
+          <button
+            onClick={() => onExport(filteredComplaints)}
+            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+          >
+            <Download className="w-4 h-4" />
+            导出报表
+          </button>
+        )}
       </div>
 
       <div className="px-6 py-3 border-b border-slate-100">
