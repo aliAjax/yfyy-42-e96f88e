@@ -157,16 +157,14 @@ export default function PrintReceipt({ complaint, onClose }: PrintReceiptProps) 
                 </div>
               </div>
 
-              {complaint.handleOpinion && (
-                <div className="pt-2">
-                  <div className="text-sm font-medium text-slate-700 mb-2 pb-1 border-b border-slate-200">
-                    社区处理意见
-                  </div>
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                    {complaint.handleOpinion}
-                  </p>
+              <div className="pt-2">
+                <div className="text-sm font-medium text-slate-700 mb-2 pb-1 border-b border-slate-200">
+                  社区处理意见
                 </div>
-              )}
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {complaint.handleOpinion || '暂无'}
+                </p>
+              </div>
 
               <div className="pt-8 mt-8 border-t border-dashed border-slate-300">
                 <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">
