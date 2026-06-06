@@ -1,6 +1,6 @@
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
 import type { Complaint, DashboardStats, StatusCount, TypeRatioItem, SourceDistributionItem, DailyTrendItem } from '@/types/complaint';
-import { getLast7Days, formatDateKey } from './helpers';
+import { getLast7Days } from './helpers';
 
 export function calculateStatusCount(complaints: Complaint[]): StatusCount {
   return {
@@ -39,7 +39,7 @@ export function calculateDailyTrend(complaints: Complaint[]): DailyTrendItem[] {
   const countMap = new Map<string, number>();
 
   complaints.forEach((c) => {
-    const dateStr = formatDateKey(new Date(c.createdAt));
+    const dateStr = c.receiveTime.split(' ')[0];
     countMap.set(dateStr, (countMap.get(dateStr) || 0) + 1);
   });
 
