@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
-import type { ComplaintFormData } from '@/types/complaint';
+import type { Complaint, ComplaintFormData } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
+import { findSimilarComplaints } from '@/utils/similarity';
+import type { SimilarComplaint } from '@/utils/similarity';
+import DuplicateCheckModal from './DuplicateCheckModal';
 
 interface ComplaintFormProps {
   onSubmit: (data: ComplaintFormData) => void;
+  existingComplaints: Complaint[];
+  onViewDetail: (complaint: Complaint) => void;
 }
 
-export default function ComplaintForm({ onSubmit }: ComplaintFormProps) {
+export default function ComplaintForm({ onSubmit, existingComplaints, onViewDetail }: ComplaintFormProps) {
   const [formData, setFormData] = useState<ComplaintFormData>({
     name: '',
     phone: '',
@@ -19,6 +24,9 @@ export default function ComplaintForm({ onSubmit }: ComplaintFormProps) {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [similarComplaints, setSimilarComplaints] = useState<SimilarComplaint[]>([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<ComplaintFormData | null>(null);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -44,18 +52,43 @@ export default function ComplaintForm({ onSubmit }: ComplaintFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      onSubmit(formData);
-      setFormData({
-        name: '',
-        phone: '',
-        type: COMPLAINT_TYPES[0],
-        content: '',
-        source: SOURCE_CHANNELS[0],
-        receiveTime: getCurrentDateTime(),
-      });
-      setErrors({});
+    if (!validate()) return;
+
+    const similar = findSimilarComplaints(formData, existingComplaints);
+    if (similar.length > 0) {
+      setSimilarComplaints(similar);
+      setPendingFormData(formData);
+      setShowDuplicateModal(true);
+    } else {
+      doSubmit(formData);
     }
+  };
+
+  const doSubmit = (data: ComplaintFormData) => {
+    onSubmit(data);
+    setFormData({
+      name: '',
+      phone: '',
+      type: COMPLAINT_TYPES[0],
+      content: '',
+      source: SOURCE_CHANNELS[0],
+      receiveTime: getCurrentDateTime(),
+    });
+    setErrors({});
+  };
+
+  const handleContinueSubmit = () => {
+    if (pendingFormData) {
+      doSubmit(pendingFormData);
+    }
+    setShowDuplicateModal(false);
+    setPendingFormData(null);
+    setSimilarComplaints([]);
+  };
+
+  const handleViewDetail = (complaint: Complaint) => {
+    setShowDuplicateModal(false);
+    onViewDetail(complaint);
   };
 
   const handleChange = (field: keyof ComplaintFormData, value: string) => {
@@ -187,6 +220,19 @@ export default function ComplaintForm({ onSubmit }: ComplaintFormProps) {
           提交登记
         </button>
       </form>
+
+      {showDuplicateModal && (
+        <DuplicateCheckModal
+          similarComplaints={similarComplaints}
+          onContinue={handleContinueSubmit}
+          onViewDetail={handleViewDetail}
+          onClose={() => {
+            setShowDuplicateModal(false);
+            setPendingFormData(null);
+            setSimilarComplaints([]);
+          }}
+        />
+      )}
     </div>
   );
 }
