@@ -152,18 +152,12 @@ function validateTemplate(t: unknown): string[] {
   }
   if (!template.title || typeof template.title !== 'string') {
     errors.push(`ID ${template.id || '未知'}: 缺少标题字段`);
-  } else if (template.title.length > 100) {
-    errors.push(`ID ${template.id || '未知'}: 标题长度超过限制 (最多100字符)`);
   }
   if (!template.type || typeof template.type !== 'string') {
     errors.push(`ID ${template.id || '未知'}: 缺少类型字段`);
-  } else if (template.type.length > 50) {
-    errors.push(`ID ${template.id || '未知'}: 类型长度超过限制 (最多50字符)`);
   }
   if (!template.content || typeof template.content !== 'string') {
     errors.push(`ID ${template.id || '未知'}: 缺少内容字段`);
-  } else if (template.content.length > 5000) {
-    errors.push(`ID ${template.id || '未知'}: 内容长度超过限制 (最多5000字符)`);
   }
 
   if (template.createdAt && typeof template.createdAt !== 'string') {
