@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, User, Phone, Clock, MessageSquare, Tag, Send, CheckCircle } from 'lucide-react';
+import { X, User, Clock, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import type { Complaint, HandleFormData } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';

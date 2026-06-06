@@ -4,7 +4,7 @@ import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
 import DetailModal from '@/components/DetailModal';
 import { mockComplaints } from '@/data/mockData';
-import { generateId, getCurrentDateTime } from '@/utils/helpers';
+import { generateId } from '@/utils/helpers';
 import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus } from '@/types/complaint';
 
 const STORAGE_KEY = 'complaint_records';
