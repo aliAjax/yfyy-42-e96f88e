@@ -7,10 +7,10 @@ import DetailModal from '@/components/DetailModal';
 import Dashboard from '@/components/Dashboard';
 import ImportModal from '@/components/ImportModal';
 import { mockComplaints } from '@/data/mockData';
-import { generateId } from '@/utils/helpers';
+import { generateId, migrateComplaintData } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus } from '@/types/complaint';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, HandleRecord } from '@/types/complaint';
 
 const STORAGE_KEY = 'complaint_records';
 
@@ -31,7 +31,9 @@ export default function Home() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
-        setComplaints(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        const migrated = migrateComplaintData(parsed);
+        setComplaints(migrated);
       } catch {
         setComplaints(mockComplaints);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mockComplaints));
@@ -63,6 +65,7 @@ export default function Home() {
       replyTime: '',
       createdAt: now,
       updatedAt: now,
+      handleRecords: [],
     };
     setComplaints((prev) => [newComplaint, ...prev]);
     showToast('诉求登记成功！');
@@ -78,6 +81,7 @@ export default function Home() {
       replyTime: '',
       createdAt: now,
       updatedAt: now,
+      handleRecords: [],
     }));
     setComplaints((prev) => [...newComplaints, ...prev]);
     setShowImportModal(false);
@@ -90,6 +94,14 @@ export default function Home() {
   };
 
   const handleComplaint = (id: string, data: HandleFormData) => {
+    const now = new Date().toISOString();
+    const newRecord: HandleRecord = {
+      id: generateId(),
+      status: data.status,
+      handleOpinion: data.handleOpinion,
+      replyTime: data.replyTime,
+      operatedAt: now,
+    };
     setComplaints((prev) =>
       prev.map((c) =>
         c.id === id
@@ -98,7 +110,8 @@ export default function Home() {
               status: data.status,
               handleOpinion: data.handleOpinion,
               replyTime: data.replyTime,
-              updatedAt: new Date().toISOString(),
+              updatedAt: now,
+              handleRecords: [...c.handleRecords, newRecord],
             }
           : c
       )

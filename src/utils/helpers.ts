@@ -1,3 +1,5 @@
+import type { Complaint, HandleRecord, ComplaintStatus } from '@/types/complaint';
+
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
@@ -52,4 +54,28 @@ export function getLast7Days(): { date: string; dateLabel: string }[] {
     });
   }
   return days;
+}
+
+type LegacyComplaint = Omit<Complaint, 'handleRecords'> & { handleRecords?: HandleRecord[] };
+
+export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
+  return complaints.map((c) => {
+    if (c.handleRecords && Array.isArray(c.handleRecords) && c.handleRecords.length > 0) {
+      return c as Complaint;
+    }
+    const handleRecords: HandleRecord[] = [];
+    if (c.handleOpinion || c.status !== 'pending') {
+      handleRecords.push({
+        id: generateId(),
+        status: c.status as ComplaintStatus,
+        handleOpinion: c.handleOpinion || '',
+        replyTime: c.replyTime || '',
+        operatedAt: c.updatedAt || c.createdAt || new Date().toISOString(),
+      });
+    }
+    return {
+      ...c,
+      handleRecords,
+    };
+  });
 }

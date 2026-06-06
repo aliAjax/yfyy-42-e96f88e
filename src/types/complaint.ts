@@ -8,6 +8,14 @@ export const STATUS_OPTIONS: { value: ComplaintStatus; label: string; color: str
   { value: 'replied', label: '已回复', color: 'green' },
 ];
 
+export interface HandleRecord {
+  id: string;
+  status: ComplaintStatus;
+  handleOpinion: string;
+  replyTime: string;
+  operatedAt: string;
+}
+
 export interface Complaint {
   id: string;
   name: string;
@@ -21,9 +29,10 @@ export interface Complaint {
   replyTime: string;
   createdAt: string;
   updatedAt: string;
+  handleRecords: HandleRecord[];
 }
 
-export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt'>;
+export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords'>;
 
 export type HandleFormData = {
   status: ComplaintStatus;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, User, Clock, MessageSquare, Send, CheckCircle } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
+import HandleTimeline from './HandleTimeline';
 import type { Complaint, HandleFormData } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
@@ -107,23 +108,7 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
               </div>
             </div>
 
-            {complaint.handleOpinion && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  处理意见
-                </h4>
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800 leading-relaxed">
-                  {complaint.handleOpinion}
-                </div>
-                {complaint.replyTime && (
-                  <div className="text-xs text-green-600 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    回复时间：{complaint.replyTime}
-                  </div>
-                )}
-              </div>
-            )}
+            <HandleTimeline records={complaint.handleRecords} />
 
             <form onSubmit={handleSubmit} className="space-y-4 pt-4 border-t border-slate-200">
               <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
