@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload } from 'lucide-react';
+import { BarChart3, X, Upload, FileText } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
 import DetailModal from '@/components/DetailModal';
 import Dashboard from '@/components/Dashboard';
 import ImportModal from '@/components/ImportModal';
+import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
@@ -19,6 +20,7 @@ export default function Home() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showTemplateManage, setShowTemplateManage] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({
     show: false,
     message: '',
@@ -160,6 +162,13 @@ export default function Home() {
               <h2 className="text-base font-semibold text-slate-800">诉求管理</h2>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShowTemplateManage(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                >
+                  <FileText className="w-4 h-4" />
+                  模板管理
+                </button>
+                <button
                   onClick={() => setShowImportModal(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
                 >
@@ -226,6 +235,12 @@ export default function Home() {
         <ImportModal
           onClose={() => setShowImportModal(false)}
           onImport={handleBatchImport}
+        />
+      )}
+
+      {showTemplateManage && (
+        <ReplyTemplateManageModal
+          onClose={() => setShowTemplateManage(false)}
         />
       )}
 

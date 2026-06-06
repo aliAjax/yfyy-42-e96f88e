@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
 import type { Complaint, HandleFormData } from '@/types/complaint';
-import { STATUS_OPTIONS } from '@/types/complaint';
+import { STATUS_OPTIONS, COMPLAINT_TYPES } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
+import { getTemplatesByType, getTemplates } from '@/utils/replyTemplate';
+import type { ReplyTemplate } from '@/types/replyTemplate';
 
 interface DetailModalProps {
   complaint: Complaint | null;
@@ -20,6 +22,9 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
     handleOpinion: '',
     replyTime: '',
   });
+  const [showTemplatePanel, setShowTemplatePanel] = useState(false);
+  const [templateFilterType, setTemplateFilterType] = useState<string>('all');
+  const templatePanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (complaint) {
@@ -31,13 +36,6 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
     }
   }, [complaint]);
 
-  if (!complaint) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onHandle(complaint.id, handleData);
-  };
-
   const handleStatusChange = (status: typeof handleData.status) => {
     setHandleData((prev) => {
       const next = { ...prev, status };
@@ -46,6 +44,44 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
       }
       return next;
     });
+  };
+
+  const templates = useMemo(() => {
+    if (templateFilterType === 'all') {
+      return getTemplates();
+    }
+    return getTemplatesByType(templateFilterType);
+  }, [templateFilterType]);
+
+  const handleSelectTemplate = (template: ReplyTemplate) => {
+    setHandleData((prev) => ({
+      ...prev,
+      handleOpinion: prev.handleOpinion
+        ? prev.handleOpinion + '\n' + template.content
+        : template.content,
+    }));
+    setShowTemplatePanel(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (templatePanelRef.current && !templatePanelRef.current.contains(e.target as Node)) {
+        setShowTemplatePanel(false);
+      }
+    };
+    if (showTemplatePanel) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTemplatePanel]);
+
+  if (!complaint) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onHandle(complaint.id, handleData);
   };
 
   return (
@@ -153,10 +189,21 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  处理意见
-                </label>
+              <div className="relative" ref={templatePanelRef}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    处理意见
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplatePanel(!showTemplatePanel)}
+                    className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    使用模板
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showTemplatePanel ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
                 <textarea
                   value={handleData.handleOpinion}
                   onChange={(e) =>
@@ -166,6 +213,66 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
                   rows={4}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
                 />
+
+                {showTemplatePanel && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                    <div className="flex border-b border-slate-100 overflow-x-auto">
+                      <button
+                        type="button"
+                        onClick={() => setTemplateFilterType('all')}
+                        className={`px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                          templateFilterType === 'all'
+                            ? 'text-blue-600 border-b-2 border-blue-600 -mb-px'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        全部
+                      </button>
+                      {COMPLAINT_TYPES.map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setTemplateFilterType(type)}
+                          className={`px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
+                            templateFilterType === type
+                              ? 'text-blue-600 border-b-2 border-blue-600 -mb-px'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {templates.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-slate-400">
+                          暂无该类型的模板
+                        </div>
+                      ) : (
+                        <div className="p-1">
+                          {templates.map((template) => (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => handleSelectTemplate(template)}
+                              className="w-full text-left p-2 rounded-md hover:bg-blue-50 transition-colors group"
+                            >
+                              <div className="text-xs font-medium text-slate-700 group-hover:text-blue-700 flex items-center gap-2">
+                                <span className="inline-block px-1.5 py-0.5 text-[10px] bg-slate-100 text-slate-500 rounded">
+                                  {template.type}
+                                </span>
+                                {template.title}
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1 line-clamp-1">
+                                {template.content}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
