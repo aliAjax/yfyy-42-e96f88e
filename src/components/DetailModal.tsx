@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
+import PrintReceipt from './PrintReceipt';
 import type { Complaint, HandleFormData } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
@@ -13,6 +14,7 @@ interface DetailModalProps {
 }
 
 export default function DetailModal({ complaint, onClose, onHandle }: DetailModalProps) {
+  const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({
     status: 'pending',
     handleOpinion: '',
@@ -59,12 +61,21 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
             <h3 className="text-lg font-semibold text-slate-900">诉求详情</h3>
             <StatusBadge status={complaint.status} />
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowPrint(true)}
+              className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">打印回执</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -195,6 +206,10 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
           </div>
         </div>
       </div>
+
+      {showPrint && complaint && (
+        <PrintReceipt complaint={complaint} onClose={() => setShowPrint(false)} />
+      )}
     </div>
   );
 }
