@@ -87,28 +87,26 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
           </h2>
           <p className="text-xs text-slate-500 mt-1">共 {filteredComplaints.length} 条 / 总计 {complaints.length} 条</p>
         </div>
-        {onExport && (
-          <div className="relative group">
-            <button
-              onClick={() => canExport && onExport(filteredComplaints)}
-              disabled={!canExport}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
-                canExport
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
-            >
-              {!canExport && <Lock className="w-3.5 h-3.5" />}
-              <Download className="w-4 h-4" />
-              导出报表
-            </button>
-            {!canExport && (
-              <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                {exportDisabledReason}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="relative group">
+          <button
+            onClick={() => canExport && onExport(filteredComplaints)}
+            disabled={!canExport}
+            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+              canExport
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {!canExport && <Lock className="w-3.5 h-3.5" />}
+            <Download className="w-4 h-4" />
+            导出报表
+          </button>
+          {!canExport && (
+            <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+              {exportDisabledReason}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="px-6 py-3 border-b border-slate-100">

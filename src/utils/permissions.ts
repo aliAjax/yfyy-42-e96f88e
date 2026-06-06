@@ -7,9 +7,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  registrar: '负责新增和查看诉求',
-  handler: '负责更新状态和处理意见',
-  admin: '拥有全部操作权限',
+  registrar: '负责诉求登记与查阅',
+  handler: '负责诉求处理与回复',
+  admin: '拥有全部操作权限与系统管理',
 };
 
 export type PermissionAction =
@@ -68,6 +68,25 @@ const permissionLabels: Record<PermissionAction, string> = {
   print_receipt: '打印回执',
 };
 
+const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
+  {
+    group: '诉求管理',
+    permissions: ['view_complaint', 'create_complaint', 'delete_complaint'],
+  },
+  {
+    group: '处理操作',
+    permissions: ['update_status', 'update_handle_opinion', 'escalate_complaint'],
+  },
+  {
+    group: '系统管理',
+    permissions: ['manage_templates', 'view_statistics', 'export_data', 'import_data'],
+  },
+  {
+    group: '其他功能',
+    permissions: ['print_receipt'],
+  },
+];
+
 export function hasPermission(role: UserRole, action: PermissionAction): boolean {
   return rolePermissions[role]?.includes(action) ?? false;
 }
@@ -84,3 +103,12 @@ export function getDisabledReason(role: UserRole, action: PermissionAction): str
   if (hasPermission(role, action)) return '';
   return `当前角色为"${ROLE_LABELS[role]}"，无${getPermissionLabel(action)}权限`;
 }
+
+export function getPermissionGroups(): { group: string; permissions: PermissionAction[] }[] {
+  return permissionGroups;
+}
+
+export function canRoleHasAnyPermission(role: UserRole, actions: PermissionAction[]): boolean {
+  return actions.some((action) => hasPermission(role, action));
+}
+

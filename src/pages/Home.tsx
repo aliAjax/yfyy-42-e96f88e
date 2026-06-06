@@ -38,7 +38,6 @@ export default function Home() {
   const canManageTemplates = hasPermission(currentRole, 'manage_templates');
   const canImport = hasPermission(currentRole, 'import_data');
   const canDelete = hasPermission(currentRole, 'delete_complaint');
-  const canExport = hasPermission(currentRole, 'export_data');
 
   const dashboardStats = useMemo(
     () => calculateDashboardStats(complaints, now),
@@ -345,7 +344,7 @@ export default function Home() {
               <ComplaintList
                 complaints={complaints}
                 onCardClick={setSelectedComplaint}
-                onExport={canExport ? handleExport : undefined}
+                onExport={handleExport}
                 now={now}
                 currentRole={currentRole}
                 onDelete={canDelete ? handleDelete : undefined}
