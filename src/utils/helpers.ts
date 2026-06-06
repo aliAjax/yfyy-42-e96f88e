@@ -153,6 +153,71 @@ function ensureInitialPendingRecord(
   return [pendingRecord, ...sorted];
 }
 
+function hasStatus(records: HandleRecord[], status: ComplaintStatus): boolean {
+  return records.some((record) => record.status === status);
+}
+
+function createProcessingRecord(
+  c: LegacyComplaint,
+  operatedAt: string,
+  handleOpinion = ''
+): HandleRecord {
+  return {
+    id: generateId(),
+    status: 'processing',
+    handleOpinion,
+    replyTime: '',
+    operatedAt,
+  };
+}
+
+function createRepliedRecord(c: LegacyComplaint, operatedAt: string): HandleRecord {
+  return {
+    id: generateId(),
+    status: 'replied',
+    handleOpinion: c.handleOpinion || '',
+    replyTime: c.replyTime || '',
+    operatedAt,
+  };
+}
+
+function ensureStatusProgression(records: HandleRecord[], c: LegacyComplaint): HandleRecord[] {
+  const status = c.status as ComplaintStatus;
+  let completedRecords = ensureInitialPendingRecord(records, c);
+
+  if (status === 'pending') {
+    return completedRecords;
+  }
+
+  if (status === 'processing' && !hasStatus(completedRecords, 'processing')) {
+    completedRecords = [
+      ...completedRecords,
+      createProcessingRecord(c, getUpdateTime(c), c.handleOpinion || ''),
+    ];
+  }
+
+  if (status === 'replied') {
+    const earliestReplied = sortRecordsByTime(completedRecords).find(
+      (record) => record.status === 'replied'
+    );
+    const pendingTime = completedRecords[0]?.operatedAt || getInitialTime(c);
+    const replyTime = earliestReplied?.operatedAt || getUpdateTime(c);
+
+    if (!hasStatus(completedRecords, 'processing')) {
+      completedRecords = [
+        ...completedRecords,
+        createProcessingRecord(c, getMidTime(pendingTime, replyTime)),
+      ];
+    }
+
+    if (!hasStatus(completedRecords, 'replied')) {
+      completedRecords = [...completedRecords, createRepliedRecord(c, getUpdateTime(c))];
+    }
+  }
+
+  return sortRecordsByTime(completedRecords);
+}
+
 export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
   return complaints.map((c) => {
     if (!c.handleRecords || !Array.isArray(c.handleRecords) || c.handleRecords.length === 0) {
@@ -162,7 +227,7 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
       };
     }
 
-    const completedRecords = ensureInitialPendingRecord(c.handleRecords, c);
+    const completedRecords = ensureStatusProgression(c.handleRecords, c);
 
     return {
       ...c,
