@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload, FileText } from 'lucide-react';
+import { BarChart3, X, Upload, FileText, Lock } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
@@ -13,8 +13,11 @@ import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord } from '@/types/complaint';
+import type { UserRole } from '@/utils/permissions';
+import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
 const STORAGE_KEY = 'complaint_records';
+const ROLE_STORAGE_KEY = 'current_role';
 
 export default function Home() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -22,6 +25,7 @@ export default function Home() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showTemplateManage, setShowTemplateManage] = useState(false);
+  const [currentRole, setCurrentRole] = useState<UserRole>('admin');
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({
     show: false,
     message: '',
@@ -29,6 +33,12 @@ export default function Home() {
   });
 
   const [now, setNow] = useState<Date>(new Date());
+
+  const canViewStatistics = hasPermission(currentRole, 'view_statistics');
+  const canManageTemplates = hasPermission(currentRole, 'manage_templates');
+  const canImport = hasPermission(currentRole, 'import_data');
+  const canDelete = hasPermission(currentRole, 'delete_complaint');
+  const canExport = hasPermission(currentRole, 'export_data');
 
   const dashboardStats = useMemo(
     () => calculateDashboardStats(complaints, now),
@@ -38,6 +48,17 @@ export default function Home() {
     () => calculateOverdueCount(complaints, now),
     [complaints, now]
   );
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem(ROLE_STORAGE_KEY) as UserRole;
+    if (storedRole && ['registrar', 'handler', 'admin'].includes(storedRole)) {
+      setCurrentRole(storedRole);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(ROLE_STORAGE_KEY, currentRole);
+  }, [currentRole]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -74,7 +95,16 @@ export default function Home() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 2500);
   };
 
+  const handleRoleChange = (role: UserRole) => {
+    setCurrentRole(role);
+    showToast(`已切换为${ROLE_LABELS[role]}角色`, 'success');
+  };
+
   const handleAddComplaint = (data: ComplaintFormData) => {
+    if (!hasPermission(currentRole, 'create_complaint')) {
+      showToast('无新增诉求权限', 'error');
+      return;
+    }
     const now = new Date().toISOString();
     const newComplaint: Complaint = {
       id: generateId(),
@@ -92,6 +122,10 @@ export default function Home() {
   };
 
   const handleBatchImport = (rows: ComplaintFormData[]) => {
+    if (!hasPermission(currentRole, 'import_data')) {
+      showToast('无批量导入权限', 'error');
+      return;
+    }
     const now = new Date().toISOString();
     const newComplaints: Complaint[] = rows.map((data) => ({
       id: generateId(),
@@ -110,11 +144,19 @@ export default function Home() {
   };
 
   const handleExport = (filteredComplaints: Complaint[]) => {
+    if (!hasPermission(currentRole, 'export_data')) {
+      showToast('无导出数据权限', 'error');
+      return;
+    }
     const result = exportComplaintsToCSV(filteredComplaints);
     showToast(result.message, result.success ? 'success' : 'error');
   };
 
   const handleComplaint = (id: string, data: HandleFormData) => {
+    if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
+      showToast('无处理权限', 'error');
+      return;
+    }
     const now = new Date().toISOString();
     setComplaints((prev) =>
       prev.map((c) => {
@@ -157,12 +199,16 @@ export default function Home() {
   };
 
   const handleEscalate = (id: string, reason: string) => {
+    if (!hasPermission(currentRole, 'escalate_complaint')) {
+      showToast('无升级处理权限', 'error');
+      return;
+    }
     const now = new Date().toISOString();
     const escalationRecord: EscalationRecord = {
       id: generateId(),
       reason,
       escalatedAt: formatDateTime(new Date(now)),
-      escalatedBy: '系统管理员',
+      escalatedBy: ROLE_LABELS[currentRole],
     };
 
     setComplaints((prev) =>
@@ -189,6 +235,15 @@ export default function Home() {
     showToast('诉求已升级！');
   };
 
+  const handleDelete = (id: string) => {
+    if (!hasPermission(currentRole, 'delete_complaint')) {
+      showToast('无删除记录权限', 'error');
+      return;
+    }
+    setComplaints((prev) => prev.filter((c) => c.id !== id));
+    showToast('诉求记录已删除');
+  };
+
   const counts: Record<ComplaintStatus, number> = {
     pending: complaints.filter((c) => c.status === 'pending').length,
     processing: complaints.filter((c) => c.status === 'processing').length,
@@ -197,7 +252,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header counts={counts} overdueCount={overdueCount} />
+      <Header
+        counts={counts}
+        overdueCount={overdueCount}
+        currentRole={currentRole}
+        onRoleChange={handleRoleChange}
+      />
 
       <main className="max-w-7xl mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -206,42 +266,89 @@ export default function Home() {
               onSubmit={handleAddComplaint}
               existingComplaints={complaints}
               onViewDetail={setSelectedComplaint}
+              currentRole={currentRole}
             />
           </div>
 
           <div className="lg:col-span-8">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <h2 className="text-base font-semibold text-slate-800">诉求管理</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowTemplateManage(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                >
-                  <FileText className="w-4 h-4" />
-                  模板管理
-                </button>
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                >
-                  <Upload className="w-4 h-4" />
-                  批量导入
-                </button>
-                <button
-                  onClick={() => setShowDashboard(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  数据看板
-                </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative group">
+                  <button
+                    onClick={() => canManageTemplates && setShowTemplateManage(true)}
+                    disabled={!canManageTemplates}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                      canManageTemplates
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    title={canManageTemplates ? '模板管理' : getDisabledReason(currentRole, 'manage_templates')}
+                  >
+                    {!canManageTemplates && <Lock className="w-3.5 h-3.5" />}
+                    <FileText className="w-4 h-4" />
+                    模板管理
+                  </button>
+                  {!canManageTemplates && (
+                    <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      {getDisabledReason(currentRole, 'manage_templates')}
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative group">
+                  <button
+                    onClick={() => canImport && setShowImportModal(true)}
+                    disabled={!canImport}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                      canImport
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    title={canImport ? '批量导入' : getDisabledReason(currentRole, 'import_data')}
+                  >
+                    {!canImport && <Lock className="w-3.5 h-3.5" />}
+                    <Upload className="w-4 h-4" />
+                    批量导入
+                  </button>
+                  {!canImport && (
+                    <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      {getDisabledReason(currentRole, 'import_data')}
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative group">
+                  <button
+                    onClick={() => canViewStatistics && setShowDashboard(true)}
+                    disabled={!canViewStatistics}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                      canViewStatistics
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    title={canViewStatistics ? '数据看板' : getDisabledReason(currentRole, 'view_statistics')}
+                  >
+                    {!canViewStatistics && <Lock className="w-3.5 h-3.5" />}
+                    <BarChart3 className="w-4 h-4" />
+                    数据看板
+                  </button>
+                  {!canViewStatistics && (
+                    <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      {getDisabledReason(currentRole, 'view_statistics')}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="h-[calc(100vh-220px)]">
               <ComplaintList
                 complaints={complaints}
                 onCardClick={setSelectedComplaint}
-                onExport={handleExport}
+                onExport={canExport ? handleExport : undefined}
                 now={now}
+                currentRole={currentRole}
+                onDelete={canDelete ? handleDelete : undefined}
               />
             </div>
           </div>
@@ -254,7 +361,9 @@ export default function Home() {
           onClose={() => setSelectedComplaint(null)}
           onHandle={handleComplaint}
           onEscalate={handleEscalate}
+          onDelete={canDelete ? handleDelete : undefined}
           now={now}
+          currentRole={currentRole}
         />
       )}
 

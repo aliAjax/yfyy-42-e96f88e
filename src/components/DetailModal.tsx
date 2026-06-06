@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
@@ -9,16 +9,32 @@ import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 import { getTemplatesByType, getTemplates } from '@/utils/replyTemplate';
 import type { ReplyTemplate } from '@/types/replyTemplate';
+import type { UserRole } from '@/utils/permissions';
+import { hasPermission, getDisabledReason } from '@/utils/permissions';
 
 interface DetailModalProps {
   complaint: Complaint | null;
   onClose: () => void;
   onHandle: (id: string, data: HandleFormData) => void;
   onEscalate: (id: string, reason: string) => void;
+  onDelete?: (id: string) => void;
   now?: Date;
+  currentRole: UserRole;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate, now }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, now, currentRole }: DetailModalProps) {
+  const canUpdateStatus = hasPermission(currentRole, 'update_status');
+  const canUpdateOpinion = hasPermission(currentRole, 'update_handle_opinion');
+  const canHandle = canUpdateStatus || canUpdateOpinion;
+  const canEscalate = hasPermission(currentRole, 'escalate_complaint');
+  const canDelete = hasPermission(currentRole, 'delete_complaint');
+  const canPrint = hasPermission(currentRole, 'print_receipt');
+
+  const handleDisabledReason = getDisabledReason(currentRole, 'update_status');
+  const escalateDisabledReason = getDisabledReason(currentRole, 'escalate_complaint');
+  const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
+  const printDisabledReason = getDisabledReason(currentRole, 'print_receipt');
+
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({
     status: 'pending',
@@ -47,6 +63,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   }, [complaint]);
 
   const handleStatusChange = (status: typeof handleData.status) => {
+    if (!canUpdateStatus) return;
     setHandleData((prev) => {
       const next = { ...prev, status };
       if (status === 'replied' && !prev.replyTime) {
@@ -64,6 +81,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   }, [templateFilterType]);
 
   const handleSelectTemplate = (template: ReplyTemplate) => {
+    if (!canUpdateOpinion) return;
     setHandleData((prev) => ({
       ...prev,
       handleOpinion: prev.handleOpinion
@@ -91,7 +109,16 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canHandle) return;
     onHandle(complaint.id, handleData);
+  };
+
+  const handleDelete = () => {
+    if (!canDelete || !onDelete) return;
+    if (confirm('确定要删除这条诉求记录吗？此操作不可恢复。')) {
+      onDelete(complaint.id);
+      onClose();
+    }
   };
 
   return (
@@ -124,13 +151,50 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowPrint(true)}
-              className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4" />
-              <span className="hidden sm:inline">打印回执</span>
-            </button>
+            <div className="relative group">
+              <button
+                onClick={() => canPrint && setShowPrint(true)}
+                disabled={!canPrint}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                  canPrint
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                    : 'text-slate-400 bg-slate-100 cursor-not-allowed'
+                }`}
+                title={canPrint ? '打印回执' : printDisabledReason}
+              >
+                {!canPrint && <Lock className="w-3.5 h-3.5" />}
+                <Printer className="w-4 h-4" />
+                <span className="hidden sm:inline">打印回执</span>
+              </button>
+              {!canPrint && (
+                <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
+                  {printDisabledReason}
+                </div>
+              )}
+            </div>
+
+            <div className="relative group">
+              <button
+                onClick={handleDelete}
+                disabled={!canDelete}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                  canDelete
+                    ? 'text-red-600 bg-red-50 hover:bg-red-100'
+                    : 'text-slate-400 bg-slate-100 cursor-not-allowed'
+                }`}
+                title={canDelete ? '删除记录' : deleteDisabledReason}
+              >
+                {!canDelete && <Lock className="w-3.5 h-3.5" />}
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">删除</span>
+              </button>
+              {!canDelete && (
+                <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
+                  {deleteDisabledReason}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -237,24 +301,59 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
             )}
 
             {complaint.status !== 'replied' && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEscalateReason('');
-                  setShowEscalateModal(true);
-                }}
-                className="w-full px-4 py-2.5 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <TrendingUp className="w-4 h-4" />
-                升级处理
-              </button>
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canEscalate) return;
+                    setEscalateReason('');
+                    setShowEscalateModal(true);
+                  }}
+                  disabled={!canEscalate}
+                  className={`w-full px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    canEscalate
+                      ? 'text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200'
+                      : 'text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed'
+                  }`}
+                >
+                  {!canEscalate && <Lock className="w-4 h-4" />}
+                  <TrendingUp className="w-4 h-4" />
+                  升级处理
+                  {!canEscalate && <span className="text-xs opacity-70">（无权限）</span>}
+                </button>
+                {!canEscalate && (
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
+                    {escalateDisabledReason}
+                  </div>
+                )}
+              </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 pt-4 border-t border-slate-200">
-              <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <Send className="w-4 h-4 text-blue-600" />
-                处理操作
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Send className="w-4 h-4 text-blue-600" />
+                  处理操作
+                </h4>
+                {!canHandle && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-md ring-1 ring-amber-200">
+                    <Lock className="w-3 h-3" />
+                    无处理权限
+                  </span>
+                )}
+              </div>
+
+              {!canHandle && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium">处理功能已禁用</p>
+                      <p className="mt-0.5 opacity-80">{handleDisabledReason}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -266,6 +365,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                       key={opt.value}
                       type="button"
                       onClick={() => handleStatusChange(opt.value)}
+                      disabled={!canUpdateStatus}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
                         handleData.status === opt.value
                           ? opt.color === 'red'
@@ -273,7 +373,9 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                             : opt.color === 'blue'
                             ? 'bg-blue-50 border-blue-300 text-blue-700'
                             : 'bg-green-50 border-green-300 text-green-700'
-                          : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                          : canUpdateStatus
+                          ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                          : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
                       }`}
                     >
                       {opt.label}
@@ -289,8 +391,13 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   </label>
                   <button
                     type="button"
-                    onClick={() => setShowTemplatePanel(!showTemplatePanel)}
-                    className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                    onClick={() => canUpdateOpinion && setShowTemplatePanel(!showTemplatePanel)}
+                    disabled={!canUpdateOpinion}
+                    className={`flex items-center gap-1 text-xs font-medium transition-colors ${
+                      canUpdateOpinion
+                        ? 'text-blue-600 hover:text-blue-700'
+                        : 'text-slate-400 cursor-not-allowed'
+                    }`}
                   >
                     <FileText className="w-3.5 h-3.5" />
                     使用模板
@@ -300,14 +407,19 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 <textarea
                   value={handleData.handleOpinion}
                   onChange={(e) =>
-                    setHandleData((prev) => ({ ...prev, handleOpinion: e.target.value }))
+                    canUpdateOpinion && setHandleData((prev) => ({ ...prev, handleOpinion: e.target.value }))
                   }
-                  placeholder="请输入处理意见和回复内容..."
+                  placeholder={canUpdateOpinion ? '请输入处理意见和回复内容...' : '无权限填写处理意见'}
                   rows={4}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                  disabled={!canUpdateOpinion}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${
+                    canUpdateOpinion
+                      ? 'border-slate-300'
+                      : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                  }`}
                 />
 
-                {showTemplatePanel && (
+                {showTemplatePanel && canUpdateOpinion && (
                   <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
                     <div className="flex border-b border-slate-100 overflow-x-auto">
                       <button
@@ -376,13 +488,19 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   type="datetime-local"
                   value={handleData.replyTime ? formatDateInput(new Date(handleData.replyTime.replace(' ', 'T'))) : ''}
                   onChange={(e) => {
+                    if (!canUpdateStatus) return;
                     const val = e.target.value;
                     setHandleData((prev) => ({
                       ...prev,
                       replyTime: val ? val.replace('T', ' ') : '',
                     }));
                   }}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={!canUpdateStatus}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                    canUpdateStatus
+                      ? 'border-slate-300'
+                      : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
 
@@ -392,11 +510,16 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   onClick={onClose}
                   className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                 >
-                  取消
+                  关闭
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  disabled={!canHandle}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    canHandle
+                      ? 'text-white bg-blue-600 hover:bg-blue-700'
+                      : 'text-slate-400 bg-slate-200 cursor-not-allowed'
+                  }`}
                 >
                   <CheckCircle className="w-4 h-4" />
                   保存处理

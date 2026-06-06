@@ -1,16 +1,24 @@
-import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle } from 'lucide-react';
+import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import type { Complaint } from '@/types/complaint';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
+import type { UserRole } from '@/utils/permissions';
+import { hasPermission, getDisabledReason } from '@/utils/permissions';
+import { useState } from 'react';
 
 interface ComplaintCardProps {
   complaint: Complaint;
   onClick: () => void;
   now?: Date;
+  currentRole: UserRole;
+  onDelete?: (id: string) => void;
 }
 
-export default function ComplaintCard({ complaint, onClick, now }: ComplaintCardProps) {
+export default function ComplaintCard({ complaint, onClick, now, currentRole, onDelete }: ComplaintCardProps) {
   const overdueInfo = calculateOverdueInfo(complaint, now);
+  const canDelete = hasPermission(currentRole, 'delete_complaint');
+  const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
+  const [showDeleteTip, setShowDeleteTip] = useState(false);
 
   const getBorderClass = () => {
     if (overdueInfo.isOverdue) return 'border-red-400 ring-2 ring-red-100';
@@ -18,42 +26,78 @@ export default function ComplaintCard({ complaint, onClick, now }: ComplaintCard
     return 'border-slate-200 hover:border-blue-300';
   };
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canDelete) return;
+    if (onDelete && confirm('确定要删除这条诉求记录吗？')) {
+      onDelete(complaint.id);
+    }
+  };
+
   return (
     <div
-      onClick={onClick}
       className={`bg-white rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 ${getBorderClass()}`}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
+        <div className="flex items-center gap-2 min-w-0 flex-1" onClick={onClick}>
+          <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
             <User className="w-4 h-4 text-slate-500" />
           </div>
-          <div>
-            <div className="font-medium text-slate-900 text-sm flex items-center gap-1.5">
-              {complaint.name}
+          <div className="min-w-0">
+            <div className="font-medium text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
+              <span className="truncate">{complaint.name}</span>
               {overdueInfo.isOverdue && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 rounded">
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 rounded flex-shrink-0">
                   <AlertCircle className="w-3 h-3" />
                   已超期
                 </span>
               )}
               {overdueInfo.isWarning && !overdueInfo.isOverdue && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded">
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded flex-shrink-0">
                   <AlertTriangle className="w-3 h-3" />
                   即将超期
                 </span>
               )}
             </div>
             <div className="text-xs text-slate-500 flex items-center gap-1">
-              <Phone className="w-3 h-3" />
+              <Phone className="w-3 h-3 flex-shrink-0" />
               {complaint.phone}
             </div>
           </div>
         </div>
-        <StatusBadge status={complaint.status} />
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <StatusBadge status={complaint.status} />
+          <div
+            className="relative"
+            onMouseEnter={() => setShowDeleteTip(true)}
+            onMouseLeave={() => setShowDeleteTip(false)}
+          >
+            <button
+              onClick={handleDelete}
+              disabled={!canDelete}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                canDelete
+                  ? 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                  : 'text-slate-300 cursor-not-allowed'
+              }`}
+              title={canDelete ? '删除' : deleteDisabledReason}
+            >
+              {canDelete ? (
+                <Trash2 className="w-3.5 h-3.5" />
+              ) : (
+                <Lock className="w-3.5 h-3.5" />
+              )}
+            </button>
+            {showDeleteTip && !canDelete && (
+              <div className="absolute right-0 top-full mt-1 px-2 py-1.5 bg-slate-800 text-white text-xs rounded whitespace-nowrap z-10">
+                {deleteDisabledReason}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2" onClick={onClick}>
         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 rounded">
           {complaint.type}
         </span>
@@ -62,12 +106,12 @@ export default function ComplaintCard({ complaint, onClick, now }: ComplaintCard
         </span>
       </div>
 
-      <div className="text-sm text-slate-600 line-clamp-2 mb-3 flex items-start gap-1.5">
+      <div className="text-sm text-slate-600 line-clamp-2 mb-3 flex items-start gap-1.5" onClick={onClick}>
         <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
         <span>{complaint.content}</span>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+      <div className="flex items-center justify-between pt-2 border-t border-slate-100" onClick={onClick}>
         <div className="text-xs text-slate-400 flex items-center gap-1">
           <Clock className="w-3.5 h-3.5" />
           受理：{complaint.receiveTime}
@@ -91,7 +135,7 @@ export default function ComplaintCard({ complaint, onClick, now }: ComplaintCard
       </div>
 
       {complaint.escalationRecords && complaint.escalationRecords.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-slate-100">
+        <div className="mt-2 pt-2 border-t border-slate-100" onClick={onClick}>
           <div className="text-xs text-purple-600 font-medium">
             已升级 {complaint.escalationRecords.length} 次
           </div>

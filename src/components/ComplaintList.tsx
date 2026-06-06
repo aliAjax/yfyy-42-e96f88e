@@ -1,20 +1,26 @@
 import { useState } from 'react';
-import { Search, ListFilter, Download } from 'lucide-react';
+import { Search, ListFilter, Download, Lock } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import type { Complaint, ComplaintStatus } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
 import { calculateOverdueInfo } from '@/utils/overdue';
+import type { UserRole } from '@/utils/permissions';
+import { hasPermission, getDisabledReason } from '@/utils/permissions';
 
 interface ComplaintListProps {
   complaints: Complaint[];
   onCardClick: (complaint: Complaint) => void;
   onExport?: (complaints: Complaint[]) => void;
   now?: Date;
+  currentRole: UserRole;
+  onDelete?: (id: string) => void;
 }
 
 type TabType = 'all' | ComplaintStatus | 'overdue' | 'warning' | 'escalated';
 
-export default function ComplaintList({ complaints, onCardClick, onExport, now }: ComplaintListProps) {
+export default function ComplaintList({ complaints, onCardClick, onExport, now, currentRole, onDelete }: ComplaintListProps) {
+  const canExport = hasPermission(currentRole, 'export_data');
+  const exportDisabledReason = getDisabledReason(currentRole, 'export_data');
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -82,13 +88,26 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now }
           <p className="text-xs text-slate-500 mt-1">共 {filteredComplaints.length} 条 / 总计 {complaints.length} 条</p>
         </div>
         {onExport && (
-          <button
-            onClick={() => onExport(filteredComplaints)}
-            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-          >
-            <Download className="w-4 h-4" />
-            导出报表
-          </button>
+          <div className="relative group">
+            <button
+              onClick={() => canExport && onExport(filteredComplaints)}
+              disabled={!canExport}
+              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                canExport
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {!canExport && <Lock className="w-3.5 h-3.5" />}
+              <Download className="w-4 h-4" />
+              导出报表
+            </button>
+            {!canExport && (
+              <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                {exportDisabledReason}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -173,6 +192,8 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now }
               complaint={complaint}
               now={now}
               onClick={() => onCardClick(complaint)}
+              currentRole={currentRole}
+              onDelete={onDelete}
             />
           ))
         )}

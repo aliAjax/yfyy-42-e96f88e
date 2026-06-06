@@ -1,19 +1,25 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Lock, AlertCircle } from 'lucide-react';
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
 import type { Complaint, ComplaintFormData } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
 import { findSimilarComplaints } from '@/utils/similarity';
 import type { SimilarComplaint } from '@/utils/similarity';
 import DuplicateCheckModal from './DuplicateCheckModal';
+import type { UserRole } from '@/utils/permissions';
+import { hasPermission, getDisabledReason } from '@/utils/permissions';
 
 interface ComplaintFormProps {
   onSubmit: (data: ComplaintFormData) => void;
   existingComplaints: Complaint[];
   onViewDetail: (complaint: Complaint) => void;
+  currentRole: UserRole;
 }
 
-export default function ComplaintForm({ onSubmit, existingComplaints, onViewDetail }: ComplaintFormProps) {
+export default function ComplaintForm({ onSubmit, existingComplaints, onViewDetail, currentRole }: ComplaintFormProps) {
+  const canCreate = hasPermission(currentRole, 'create_complaint');
+  const disabledReason = getDisabledReason(currentRole, 'create_complaint');
+
   const [formData, setFormData] = useState<ComplaintFormData>({
     name: '',
     phone: '',
@@ -52,6 +58,7 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreate) return;
     if (!validate()) return;
 
     const similar = findSimilarComplaints(formData, existingComplaints);
@@ -109,14 +116,36 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-        <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-          <Plus className="w-4 h-4 text-blue-600" />
-          诉求登记
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">快速录入群众诉求信息</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-blue-600" />
+              诉求登记
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">快速录入群众诉求信息</p>
+          </div>
+          {!canCreate && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-md ring-1 ring-amber-200">
+              <Lock className="w-3 h-3" />
+              无权限
+            </span>
+          )}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      {!canCreate && (
+        <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-amber-800">
+              <p className="font-medium">功能已禁用</p>
+              <p className="mt-0.5 opacity-80">{disabledReason}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className={`p-6 space-y-4 ${!canCreate ? 'opacity-60' : ''}`}>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -127,7 +156,8 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
               placeholder="请输入姓名"
-              className={`${inputBaseClass} ${errors.name ? errorClass : 'border-slate-300'}`}
+              disabled={!canCreate}
+              className={`${inputBaseClass} ${errors.name ? errorClass : 'border-slate-300'} ${!canCreate ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''}`}
             />
             {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
           </div>
@@ -141,7 +171,8 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
               value={formData.phone}
               onChange={(e) => handleChange('phone', e.target.value)}
               placeholder="请输入手机号"
-              className={`${inputBaseClass} ${errors.phone ? errorClass : 'border-slate-300'}`}
+              disabled={!canCreate}
+              className={`${inputBaseClass} ${errors.phone ? errorClass : 'border-slate-300'} ${!canCreate ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''}`}
             />
             {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
           </div>
@@ -153,7 +184,8 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
             <select
               value={formData.type}
               onChange={(e) => handleChange('type', e.target.value)}
-              className={`${inputBaseClass} border-slate-300 bg-white`}
+              disabled={!canCreate}
+              className={`${inputBaseClass} border-slate-300 bg-white ${!canCreate ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''}`}
             >
               {COMPLAINT_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -168,7 +200,8 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
             <select
               value={formData.source}
               onChange={(e) => handleChange('source', e.target.value)}
-              className={`${inputBaseClass} border-slate-300 bg-white`}
+              disabled={!canCreate}
+              className={`${inputBaseClass} border-slate-300 bg-white ${!canCreate ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''}`}
             >
               {SOURCE_CHANNELS.map((source) => (
                 <option key={source} value={source}>
@@ -188,7 +221,8 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
             onChange={(e) => handleChange('content', e.target.value)}
             placeholder="请详细描述诉求内容..."
             rows={4}
-            className={`${inputBaseClass} resize-none ${errors.content ? errorClass : 'border-slate-300'}`}
+            disabled={!canCreate}
+            className={`${inputBaseClass} resize-none ${errors.content ? errorClass : 'border-slate-300'} ${!canCreate ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''}`}
           />
           {errors.content && <p className="text-xs text-red-500 mt-1">{errors.content}</p>}
         </div>
@@ -207,14 +241,20 @@ export default function ComplaintForm({ onSubmit, existingComplaints, onViewDeta
                 handleChange('receiveTime', formatted);
               }
             }}
-            className={`${inputBaseClass} ${errors.receiveTime ? errorClass : 'border-slate-300'}`}
+            disabled={!canCreate}
+            className={`${inputBaseClass} ${errors.receiveTime ? errorClass : 'border-slate-300'} ${!canCreate ? 'cursor-not-allowed bg-slate-50 text-slate-400' : ''}`}
           />
           {errors.receiveTime && <p className="text-xs text-red-500 mt-1">{errors.receiveTime}</p>}
         </div>
 
         <button
           type="submit"
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 active:scale-[0.98]"
+          disabled={!canCreate}
+          className={`w-full py-2.5 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+            canCreate
+              ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-[0.98]'
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+          }`}
         >
           <Plus className="w-4 h-4" />
           提交登记
