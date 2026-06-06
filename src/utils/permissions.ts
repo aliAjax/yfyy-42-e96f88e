@@ -33,7 +33,6 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
   ],
   handler: [
     'view_complaint',
-    'create_complaint',
     'update_status',
     'update_handle_opinion',
     'escalate_complaint',
@@ -108,7 +107,6 @@ export function getPermissionGroups(): { group: string; permissions: PermissionA
   return permissionGroups;
 }
 
-export function canRoleHasAnyPermission(role: UserRole, actions: PermissionAction[]): boolean {
+export function hasAnyPermission(role: UserRole, actions: PermissionAction[]): boolean {
   return actions.some((action) => hasPermission(role, action));
 }
-
