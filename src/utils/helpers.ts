@@ -77,56 +77,96 @@ function getMidTime(start: string, end: string): string {
   return new Date(s + (e - s) / 2).toISOString();
 }
 
-export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
-  return complaints.map((c) => {
-    if (c.handleRecords && Array.isArray(c.handleRecords) && c.handleRecords.length > 0) {
-      return c as Complaint;
-    }
+function sortRecordsByTime(records: HandleRecord[]): HandleRecord[] {
+  return [...records].sort(
+    (a, b) => new Date(a.operatedAt).getTime() - new Date(b.operatedAt).getTime()
+  );
+}
 
-    const handleRecords: HandleRecord[] = [];
-    const initialTime = getInitialTime(c);
-    const updateTime = getUpdateTime(c);
-    const status = c.status as ComplaintStatus;
+function buildFullRecords(c: LegacyComplaint): HandleRecord[] {
+  const handleRecords: HandleRecord[] = [];
+  const initialTime = getInitialTime(c);
+  const updateTime = getUpdateTime(c);
+  const status = c.status as ComplaintStatus;
 
+  handleRecords.push({
+    id: generateId(),
+    status: 'pending',
+    handleOpinion: '',
+    replyTime: '',
+    operatedAt: initialTime,
+  });
+
+  if (status === 'processing') {
     handleRecords.push({
       id: generateId(),
-      status: 'pending',
+      status: 'processing',
+      handleOpinion: c.handleOpinion || '',
+      replyTime: '',
+      operatedAt: updateTime,
+    });
+  }
+
+  if (status === 'replied') {
+    const midTime = getMidTime(initialTime, updateTime);
+    handleRecords.push({
+      id: generateId(),
+      status: 'processing',
       handleOpinion: '',
       replyTime: '',
-      operatedAt: initialTime,
+      operatedAt: midTime,
     });
+    handleRecords.push({
+      id: generateId(),
+      status: 'replied',
+      handleOpinion: c.handleOpinion || '',
+      replyTime: c.replyTime || '',
+      operatedAt: updateTime,
+    });
+  }
 
-    if (status === 'processing') {
-      handleRecords.push({
-        id: generateId(),
-        status: 'processing',
-        handleOpinion: c.handleOpinion || '',
-        replyTime: '',
-        operatedAt: updateTime,
-      });
+  return handleRecords;
+}
+
+function ensureInitialPendingRecord(
+  records: HandleRecord[],
+  c: LegacyComplaint
+): HandleRecord[] {
+  const sorted = sortRecordsByTime(records);
+
+  if (sorted.length > 0 && sorted[0].status === 'pending') {
+    return sorted;
+  }
+
+  const firstTime = sorted.length > 0 ? sorted[0].operatedAt : getUpdateTime(c);
+  const initialTime = getInitialTime(c);
+  const pendingTime = initialTime < firstTime ? initialTime : firstTime;
+
+  const pendingRecord: HandleRecord = {
+    id: generateId(),
+    status: 'pending',
+    handleOpinion: '',
+    replyTime: '',
+    operatedAt: pendingTime,
+  };
+
+  return [pendingRecord, ...sorted];
+}
+
+export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
+  return complaints.map((c) => {
+    if (!c.handleRecords || !Array.isArray(c.handleRecords) || c.handleRecords.length === 0) {
+      return {
+        ...c,
+        handleRecords: buildFullRecords(c),
+      };
     }
 
-    if (status === 'replied') {
-      const midTime = getMidTime(initialTime, updateTime);
-      handleRecords.push({
-        id: generateId(),
-        status: 'processing',
-        handleOpinion: '',
-        replyTime: '',
-        operatedAt: midTime,
-      });
-      handleRecords.push({
-        id: generateId(),
-        status: 'replied',
-        handleOpinion: c.handleOpinion || '',
-        replyTime: c.replyTime || '',
-        operatedAt: updateTime,
-      });
-    }
+    const completedRecords = ensureInitialPendingRecord(c.handleRecords, c);
 
     return {
       ...c,
-      handleRecords,
+      handleRecords: completedRecords,
     };
   });
 }
