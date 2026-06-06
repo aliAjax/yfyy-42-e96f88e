@@ -41,7 +41,6 @@ export default function BackupRestoreModal({
   onRestoreComplete,
 }: BackupRestoreModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('export');
-  const [fileContent, setFileContent] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
   const [previewResult, setPreviewResult] = useState<ImportPreviewResult | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>('merge_skip');
@@ -79,12 +78,11 @@ export default function BackupRestoreModal({
 
     try {
       const content = await readBackupFile(file);
-      setFileContent(content);
 
       const preview = generateImportPreview(content);
       setPreviewResult(preview);
       setConflicts(preview.conflicts);
-    } catch (err) {
+    } catch {
       showToast('文件读取失败', 'error');
     }
   };

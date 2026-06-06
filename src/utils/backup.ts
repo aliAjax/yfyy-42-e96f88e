@@ -152,12 +152,25 @@ function validateTemplate(t: unknown): string[] {
   }
   if (!template.title || typeof template.title !== 'string') {
     errors.push(`ID ${template.id || '未知'}: 缺少标题字段`);
+  } else if (template.title.length > 100) {
+    errors.push(`ID ${template.id || '未知'}: 标题长度超过限制 (最多100字符)`);
   }
   if (!template.type || typeof template.type !== 'string') {
     errors.push(`ID ${template.id || '未知'}: 缺少类型字段`);
+  } else if (template.type.length > 50) {
+    errors.push(`ID ${template.id || '未知'}: 类型长度超过限制 (最多50字符)`);
   }
   if (!template.content || typeof template.content !== 'string') {
     errors.push(`ID ${template.id || '未知'}: 缺少内容字段`);
+  } else if (template.content.length > 5000) {
+    errors.push(`ID ${template.id || '未知'}: 内容长度超过限制 (最多5000字符)`);
+  }
+
+  if (template.createdAt && typeof template.createdAt !== 'string') {
+    errors.push(`ID ${template.id || '未知'}: createdAt 格式不正确`);
+  }
+  if (template.updatedAt && typeof template.updatedAt !== 'string') {
+    errors.push(`ID ${template.id || '未知'}: updatedAt 格式不正确`);
   }
 
   return errors;
@@ -299,12 +312,12 @@ export function validateBackup(fileContent: string): ValidationResult {
   }
 
   if (!data.replyTemplates || !Array.isArray(data.replyTemplates)) {
-    warnings.push('备份数据中缺少回复模板列表');
+    errors.push('备份数据中缺少回复模板列表');
   } else {
     data.replyTemplates.forEach((t, index) => {
       const errs = validateTemplate(t);
       if (errs.length > 0) {
-        warnings.push(`模板 #${index + 1}: ${errs.join('；')}`);
+        errors.push(`模板 #${index + 1}: ${errs.join('；')}`);
       }
     });
   }
@@ -360,6 +373,12 @@ function computeArrayDiff<T extends { id: string }>(
   return { added, removed, modified, unchanged, conflicts };
 }
 
+function filterValidTemplates(templates: unknown[]): ReplyTemplate[] {
+  return templates.filter((t): t is ReplyTemplate => {
+    return validateTemplate(t).length === 0;
+  });
+}
+
 export function generateImportPreview(fileContent: string): ImportPreviewResult {
   const validation = validateBackup(fileContent);
   const version = validation.version || '0.0.0';
@@ -370,7 +389,11 @@ export function generateImportPreview(fileContent: string): ImportPreviewResult 
     try {
       const parsed = JSON.parse(fileContent);
       const { data } = migrateBackupData(parsed, version);
-      backupData = data;
+      const validTemplates = filterValidTemplates(data.replyTemplates);
+      backupData = {
+        ...data,
+        replyTemplates: validTemplates,
+      };
     } catch {
       // 如果解析失败，保持空数据
     }
@@ -439,6 +462,16 @@ export function applyImport(
   try {
     const currentComplaints = getCurrentComplaints();
     const currentTemplates = getCurrentTemplates();
+
+    const validTemplates = filterValidTemplates(backupData.replyTemplates);
+    const hasInvalidTemplates = validTemplates.length !== backupData.replyTemplates.length;
+
+    if (hasInvalidTemplates) {
+      return {
+        success: false,
+        message: `检测到 ${backupData.replyTemplates.length - validTemplates.length} 个无效模板，恢复已终止`,
+      };
+    }
 
     const conflictMap = new Map(conflicts.map((c) => [`${c.type}:${c.id}`, c.resolution]));
 
