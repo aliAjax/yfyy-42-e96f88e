@@ -30,3 +30,35 @@ export type HandleFormData = {
   handleOpinion: string;
   replyTime: string;
 };
+
+export interface StatusCount {
+  pending: number;
+  processing: number;
+  replied: number;
+}
+
+export interface TypeRatioItem {
+  type: string;
+  count: number;
+  ratio: number;
+}
+
+export interface SourceDistributionItem {
+  source: string;
+  count: number;
+  ratio: number;
+}
+
+export interface DailyTrendItem {
+  date: string;
+  dateLabel: string;
+  count: number;
+}
+
+export interface DashboardStats {
+  total: number;
+  statusCount: StatusCount;
+  typeRatio: TypeRatioItem[];
+  sourceDistribution: SourceDistributionItem[];
+  dailyTrend: DailyTrendItem[];
+}
