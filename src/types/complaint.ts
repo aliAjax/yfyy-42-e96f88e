@@ -62,3 +62,22 @@ export interface DashboardStats {
   sourceDistribution: SourceDistributionItem[];
   dailyTrend: DailyTrendItem[];
 }
+
+export interface ImportRowError {
+  field: string;
+  message: string;
+}
+
+export interface ParsedImportRow {
+  index: number;
+  data: ComplaintFormData;
+  errors: ImportRowError[];
+  isValid: boolean;
+}
+
+export interface ImportPreviewResult {
+  total: number;
+  validCount: number;
+  invalidCount: number;
+  rows: ParsedImportRow[];
+}

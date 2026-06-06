@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X } from 'lucide-react';
+import { BarChart3, X, Upload } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
 import DetailModal from '@/components/DetailModal';
 import Dashboard from '@/components/Dashboard';
+import ImportModal from '@/components/ImportModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
@@ -16,6 +17,7 @@ export default function Home() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({
     show: false,
     message: '',
@@ -65,6 +67,22 @@ export default function Home() {
     showToast('诉求登记成功！');
   };
 
+  const handleBatchImport = (rows: ComplaintFormData[]) => {
+    const now = new Date().toISOString();
+    const newComplaints: Complaint[] = rows.map((data) => ({
+      id: generateId(),
+      ...data,
+      status: 'pending',
+      handleOpinion: '',
+      replyTime: '',
+      createdAt: now,
+      updatedAt: now,
+    }));
+    setComplaints((prev) => [...newComplaints, ...prev]);
+    setShowImportModal(false);
+    showToast(`成功导入 ${rows.length} 条诉求！`);
+  };
+
   const handleComplaint = (id: string, data: HandleFormData) => {
     setComplaints((prev) =>
       prev.map((c) =>
@@ -102,13 +120,22 @@ export default function Home() {
           <div className="lg:col-span-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-slate-800">诉求管理</h2>
-              <button
-                onClick={() => setShowDashboard(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-              >
-                <BarChart3 className="w-4 h-4" />
-                数据看板
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                >
+                  <Upload className="w-4 h-4" />
+                  批量导入
+                </button>
+                <button
+                  onClick={() => setShowDashboard(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  数据看板
+                </button>
+              </div>
             </div>
             <div className="h-[calc(100vh-220px)]">
               <ComplaintList
@@ -154,6 +181,13 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onImport={handleBatchImport}
+        />
       )}
 
       {toast.show && (
