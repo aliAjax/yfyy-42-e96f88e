@@ -6,6 +6,8 @@ import {
   PieChart,
   TrendingUp,
   Layers,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import type { DashboardStats } from '@/types/complaint';
 
@@ -101,6 +103,27 @@ export default function Dashboard({ stats }: DashboardProps) {
             </div>
           );
         })}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+              <AlertCircle className="w-4 h-4 text-red-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-red-700">{stats.overdueCount.overdue}</div>
+          <div className="text-xs text-red-700 opacity-70">已超期</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-amber-700">{stats.overdueCount.warning}</div>
+          <div className="text-xs text-amber-700 opacity-70">即将超期</div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
 import type { Complaint, HandleFormData } from '@/types/complaint';
 import { STATUS_OPTIONS, COMPLAINT_TYPES } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
+import { calculateOverdueInfo } from '@/utils/overdue';
 import { getTemplatesByType, getTemplates } from '@/utils/replyTemplate';
 import type { ReplyTemplate } from '@/types/replyTemplate';
 
@@ -13,9 +14,10 @@ interface DetailModalProps {
   complaint: Complaint | null;
   onClose: () => void;
   onHandle: (id: string, data: HandleFormData) => void;
+  onEscalate: (id: string, reason: string) => void;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate }: DetailModalProps) {
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({
     status: 'pending',
@@ -24,7 +26,14 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
   });
   const [showTemplatePanel, setShowTemplatePanel] = useState(false);
   const [templateFilterType, setTemplateFilterType] = useState<string>('all');
+  const [showEscalateModal, setShowEscalateModal] = useState(false);
+  const [escalateReason, setEscalateReason] = useState('');
   const templatePanelRef = useRef<HTMLDivElement>(null);
+
+  const overdueInfo = useMemo(() => {
+    if (!complaint) return null;
+    return calculateOverdueInfo(complaint);
+  }, [complaint]);
 
   useEffect(() => {
     if (complaint) {
@@ -92,10 +101,26 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
       ></div>
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transition-all duration-200">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
+        <div className={`sticky top-0 border-b px-6 py-4 flex items-center justify-between z-10 ${
+          overdueInfo?.isOverdue ? 'bg-red-50 border-red-200' :
+          overdueInfo?.isWarning ? 'bg-amber-50 border-amber-200' :
+          'bg-white border-slate-200'
+        }`}>
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold text-slate-900">诉求详情</h3>
             <StatusBadge status={complaint.status} />
+            {overdueInfo?.isOverdue && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 rounded">
+                <AlertCircle className="w-3.5 h-3.5" />
+                已超期
+              </span>
+            )}
+            {overdueInfo?.isWarning && !overdueInfo?.isOverdue && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700 rounded">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                即将超期
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -138,10 +163,36 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
                   <span className="text-slate-500">来源渠道：</span>
                   <span className="text-slate-900 font-medium">{complaint.source}</span>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <span className="text-slate-500">受理时间：</span>
                   <span className="text-slate-900 font-medium">{complaint.receiveTime}</span>
                 </div>
+                <div>
+                  <span className="text-slate-500">处理时限：</span>
+                  <span className="text-slate-900 font-medium">{overdueInfo?.timeLimitHours || 0} 小时</span>
+                </div>
+                {complaint.status !== 'replied' && (
+                  <>
+                    <div>
+                      <span className="text-slate-500">截止时间：</span>
+                      <span className={`font-medium ${
+                        overdueInfo?.isOverdue ? 'text-red-600' :
+                        overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
+                      }`}>{overdueInfo?.deadline}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">剩余时间：</span>
+                      <span className={`font-medium ${
+                        overdueInfo?.isOverdue ? 'text-red-600' :
+                        overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
+                      }`}>
+                        {overdueInfo?.isOverdue
+                          ? `超期 ${overdueInfo.overdueHours} 小时`
+                          : `${overdueInfo?.remainingHours} 小时`}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -156,6 +207,47 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
             </div>
 
             <HandleTimeline records={complaint.handleRecords} />
+
+            {complaint.escalationRecords && complaint.escalationRecords.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-purple-600" />
+                  升级历史
+                </h4>
+                <div className="space-y-2">
+                  {complaint.escalationRecords.map((record, index) => (
+                    <div
+                      key={record.id}
+                      className="bg-purple-50 border border-purple-200 rounded-lg p-3"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-purple-700">
+                          第 {index + 1} 次升级
+                        </span>
+                        <span className="text-xs text-purple-500">
+                          {record.escalatedAt}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-700">{record.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {complaint.status !== 'replied' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEscalateReason('');
+                  setShowEscalateModal(true);
+                }}
+                className="w-full px-4 py-2.5 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                升级处理
+              </button>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4 pt-4 border-t border-slate-200">
               <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -316,6 +408,76 @@ export default function DetailModal({ complaint, onClose, onHandle }: DetailModa
 
       {showPrint && complaint && (
         <PrintReceipt complaint={complaint} onClose={() => setShowPrint(false)} />
+      )}
+
+      {showEscalateModal && complaint && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowEscalateModal(false)}
+          ></div>
+
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-purple-600" />
+                升级处理
+              </h3>
+              <button
+                onClick={() => setShowEscalateModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <p className="text-sm text-purple-700">
+                  升级后该诉求将标记为重点关注，并记录到升级历史中。请填写升级原因。
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  升级原因
+                </label>
+                <textarea
+                  value={escalateReason}
+                  onChange={(e) => setEscalateReason(e.target.value)}
+                  placeholder="请填写升级原因..."
+                  rows={4}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEscalateModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (escalateReason.trim()) {
+                      onEscalate(complaint.id, escalateReason.trim());
+                      setShowEscalateModal(false);
+                      setEscalateReason('');
+                    }
+                  }}
+                  disabled={!escalateReason.trim()}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  确认升级
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,15 @@
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
-import type { Complaint, DashboardStats, StatusCount, TypeRatioItem, SourceDistributionItem, DailyTrendItem } from '@/types/complaint';
+import type {
+  Complaint,
+  DashboardStats,
+  StatusCount,
+  OverdueCount,
+  TypeRatioItem,
+  SourceDistributionItem,
+  DailyTrendItem,
+} from '@/types/complaint';
 import { getLast7Days } from './helpers';
+import { calculateOverdueCount } from './overdue';
 
 export function calculateStatusCount(complaints: Complaint[]): StatusCount {
   return {
@@ -50,10 +59,15 @@ export function calculateDailyTrend(complaints: Complaint[]): DailyTrendItem[] {
   }));
 }
 
+export function calculateOverdueStats(complaints: Complaint[]): OverdueCount {
+  return calculateOverdueCount(complaints);
+}
+
 export function calculateDashboardStats(complaints: Complaint[]): DashboardStats {
   return {
     total: complaints.length,
     statusCount: calculateStatusCount(complaints),
+    overdueCount: calculateOverdueStats(complaints),
     typeRatio: calculateTypeRatio(complaints),
     sourceDistribution: calculateSourceDistribution(complaints),
     dailyTrend: calculateDailyTrend(complaints),

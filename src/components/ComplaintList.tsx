@@ -3,6 +3,7 @@ import { Search, ListFilter, Download } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import type { Complaint, ComplaintStatus } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
+import { calculateOverdueInfo } from '@/utils/overdue';
 
 interface ComplaintListProps {
   complaints: Complaint[];
@@ -10,23 +11,45 @@ interface ComplaintListProps {
   onExport?: (complaints: Complaint[]) => void;
 }
 
-type TabType = 'all' | ComplaintStatus;
+type TabType = 'all' | ComplaintStatus | 'overdue' | 'warning' | 'escalated';
 
 export default function ComplaintList({ complaints, onCardClick, onExport }: ComplaintListProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const tabs: { key: TabType; label: string; count: number }[] = [
+  const overdueCount = complaints.filter(
+    (c) => c.status !== 'replied' && calculateOverdueInfo(c).isOverdue
+  ).length;
+  const warningCount = complaints.filter(
+    (c) => c.status !== 'replied' && calculateOverdueInfo(c).isWarning && !calculateOverdueInfo(c).isOverdue
+  ).length;
+  const escalatedCount = complaints.filter(
+    (c) => c.escalationRecords && c.escalationRecords.length > 0
+  ).length;
+
+  const tabs: { key: TabType; label: string; count: number; icon?: string }[] = [
     { key: 'all', label: '全部', count: complaints.length },
     ...STATUS_OPTIONS.map((opt) => ({
       key: opt.value as ComplaintStatus,
       label: opt.label,
       count: complaints.filter((c) => c.status === opt.value).length,
     })),
+    { key: 'overdue', label: '已超期', count: overdueCount },
+    { key: 'warning', label: '即将超期', count: warningCount },
+    { key: 'escalated', label: '已升级', count: escalatedCount },
   ];
 
   const filteredComplaints = complaints
     .filter((c) => {
+      if (activeTab === 'overdue') {
+        return c.status !== 'replied' && calculateOverdueInfo(c).isOverdue;
+      }
+      if (activeTab === 'warning') {
+        return c.status !== 'replied' && calculateOverdueInfo(c).isWarning && !calculateOverdueInfo(c).isOverdue;
+      }
+      if (activeTab === 'escalated') {
+        return c.escalationRecords && c.escalationRecords.length > 0;
+      }
       if (activeTab !== 'all' && c.status !== activeTab) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -38,7 +61,13 @@ export default function ComplaintList({ complaints, onCardClick, onExport }: Com
       }
       return true;
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => {
+      const aOverdue = a.status !== 'replied' && calculateOverdueInfo(a).isOverdue;
+      const bOverdue = b.status !== 'replied' && calculateOverdueInfo(b).isOverdue;
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
@@ -73,29 +102,59 @@ export default function ComplaintList({ complaints, onCardClick, onExport }: Com
           />
         </div>
 
-        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                activeTab === tab.key
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-800'
-              }`}
-            >
-              {tab.label}
-              <span
-                className={`ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full ${
-                  activeTab === tab.key
-                    ? 'bg-blue-100 text-blue-600'
-                    : 'bg-slate-200 text-slate-600'
+        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto">
+          {tabs.map((tab) => {
+            const isOverdueTab = tab.key === 'overdue';
+            const isWarningTab = tab.key === 'warning';
+            const isEscalatedTab = tab.key === 'escalated';
+            
+            const getActiveClass = () => {
+              if (isOverdueTab) return 'bg-white text-red-600 shadow-sm';
+              if (isWarningTab) return 'bg-white text-amber-600 shadow-sm';
+              if (isEscalatedTab) return 'bg-white text-purple-600 shadow-sm';
+              return 'bg-white text-blue-600 shadow-sm';
+            };
+            
+            const getInactiveClass = () => {
+              if (isOverdueTab) return 'text-red-500 hover:text-red-700';
+              if (isWarningTab) return 'text-amber-500 hover:text-amber-700';
+              if (isEscalatedTab) return 'text-purple-500 hover:text-purple-700';
+              return 'text-slate-600 hover:text-slate-800';
+            };
+            
+            const getBadgeActiveClass = () => {
+              if (isOverdueTab) return 'bg-red-100 text-red-600';
+              if (isWarningTab) return 'bg-amber-100 text-amber-600';
+              if (isEscalatedTab) return 'bg-purple-100 text-purple-600';
+              return 'bg-blue-100 text-blue-600';
+            };
+            
+            const getBadgeInactiveClass = () => {
+              if (isOverdueTab) return 'bg-red-200/50 text-red-600';
+              if (isWarningTab) return 'bg-amber-200/50 text-amber-600';
+              if (isEscalatedTab) return 'bg-purple-200/50 text-purple-600';
+              return 'bg-slate-200 text-slate-600';
+            };
+            
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  activeTab === tab.key ? getActiveClass() : getInactiveClass()
                 }`}
               >
-                {tab.count}
-              </span>
-            </button>
-          ))}
+                {tab.label}
+                <span
+                  className={`ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full ${
+                    activeTab === tab.key ? getBadgeActiveClass() : getBadgeInactiveClass()
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

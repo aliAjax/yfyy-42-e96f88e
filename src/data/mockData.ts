@@ -23,6 +23,14 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-03T09:30:00.000Z',
       },
     ],
+    escalationRecords: [
+      {
+        id: 'e1-1',
+        reason: '该诉求涉及安全隐患，且居民多次催办仍未处理，申请升级处理，请领导协调相关部门尽快解决。',
+        escalatedAt: '2026-06-04 14:20',
+        escalatedBy: '李主任',
+      },
+    ],
   },
   {
     id: '2',
@@ -53,6 +61,7 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-03T10:15:00.000Z',
       },
     ],
+    escalationRecords: [],
   },
   {
     id: '3',
@@ -90,6 +99,7 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-02T10:30:00.000Z',
       },
     ],
+    escalationRecords: [],
   },
   {
     id: '4',
@@ -120,6 +130,7 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-04T10:15:00.000Z',
       },
     ],
+    escalationRecords: [],
   },
   {
     id: '5',
@@ -143,6 +154,7 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-05T08:30:00.000Z',
       },
     ],
+    escalationRecords: [],
   },
   {
     id: '6',
@@ -180,6 +192,14 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-04T15:00:00.000Z',
       },
     ],
+    escalationRecords: [
+      {
+        id: 'e6-1',
+        reason: '上级领导关注的重点建议，需加快推进落实。',
+        escalatedAt: '2026-06-03 16:30',
+        escalatedBy: '王书记',
+      },
+    ],
   },
   {
     id: '7',
@@ -203,6 +223,7 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-04T15:30:00.000Z',
       },
     ],
+    escalationRecords: [],
   },
   {
     id: '8',
@@ -233,5 +254,6 @@ export const mockComplaints: Complaint[] = [
         operatedAt: '2026-06-02T14:00:00.000Z',
       },
     ],
+    escalationRecords: [],
   },
 ];

@@ -1,4 +1,4 @@
-import type { Complaint, HandleRecord, ComplaintStatus } from '@/types/complaint';
+import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord } from '@/types/complaint';
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -56,7 +56,10 @@ export function getLast7Days(): { date: string; dateLabel: string }[] {
   return days;
 }
 
-type LegacyComplaint = Omit<Complaint, 'handleRecords'> & { handleRecords?: HandleRecord[] };
+type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords'> & {
+  handleRecords?: HandleRecord[];
+  escalationRecords?: EscalationRecord[];
+};
 
 function getInitialTime(c: LegacyComplaint): string {
   if (c.createdAt) return c.createdAt;
@@ -220,18 +223,20 @@ function ensureStatusProgression(records: HandleRecord[], c: LegacyComplaint): H
 
 export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
   return complaints.map((c) => {
+    let handleRecords: HandleRecord[];
     if (!c.handleRecords || !Array.isArray(c.handleRecords) || c.handleRecords.length === 0) {
-      return {
-        ...c,
-        handleRecords: buildFullRecords(c),
-      };
+      handleRecords = buildFullRecords(c);
+    } else {
+      handleRecords = ensureStatusProgression(c.handleRecords, c);
     }
 
-    const completedRecords = ensureStatusProgression(c.handleRecords, c);
+    const escalationRecords: EscalationRecord[] =
+      c.escalationRecords && Array.isArray(c.escalationRecords) ? c.escalationRecords : [];
 
     return {
       ...c,
-      handleRecords: completedRecords,
-    };
+      handleRecords,
+      escalationRecords,
+    } as Complaint;
   });
 }

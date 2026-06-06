@@ -8,10 +8,11 @@ import Dashboard from '@/components/Dashboard';
 import ImportModal from '@/components/ImportModal';
 import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
 import { mockComplaints } from '@/data/mockData';
-import { generateId, migrateComplaintData } from '@/utils/helpers';
+import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
+import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus } from '@/types/complaint';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord } from '@/types/complaint';
 
 const STORAGE_KEY = 'complaint_records';
 
@@ -28,6 +29,8 @@ export default function Home() {
   });
 
   const dashboardStats = useMemo(() => calculateDashboardStats(complaints), [complaints]);
+  const overdueCount = useMemo(() => calculateOverdueCount(complaints), [complaints]);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -44,6 +47,13 @@ export default function Home() {
       setComplaints(mockComplaints);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(mockComplaints));
     }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -68,6 +78,7 @@ export default function Home() {
       createdAt: now,
       updatedAt: now,
       handleRecords: [],
+      escalationRecords: [],
     };
     setComplaints((prev) => [newComplaint, ...prev]);
     showToast('诉求登记成功！');
@@ -84,6 +95,7 @@ export default function Home() {
       createdAt: now,
       updatedAt: now,
       handleRecords: [],
+      escalationRecords: [],
     }));
     setComplaints((prev) => [...newComplaints, ...prev]);
     setShowImportModal(false);
@@ -137,6 +149,39 @@ export default function Home() {
     showToast('处理记录已保存！');
   };
 
+  const handleEscalate = (id: string, reason: string) => {
+    const now = new Date().toISOString();
+    const escalationRecord: EscalationRecord = {
+      id: generateId(),
+      reason,
+      escalatedAt: formatDateTime(new Date(now)),
+      escalatedBy: '系统管理员',
+    };
+
+    setComplaints((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const existingRecords = c.escalationRecords || [];
+        return {
+          ...c,
+          updatedAt: now,
+          escalationRecords: [...existingRecords, escalationRecord],
+        };
+      })
+    );
+
+    setSelectedComplaint((prev) => {
+      if (!prev || prev.id !== id) return prev;
+      return {
+        ...prev,
+        updatedAt: now,
+        escalationRecords: [...(prev.escalationRecords || []), escalationRecord],
+      };
+    });
+
+    showToast('诉求已升级！');
+  };
+
   const counts: Record<ComplaintStatus, number> = {
     pending: complaints.filter((c) => c.status === 'pending').length,
     processing: complaints.filter((c) => c.status === 'processing').length,
@@ -145,7 +190,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header counts={counts} />
+      <Header counts={counts} overdueCount={overdueCount} />
 
       <main className="max-w-7xl mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -200,6 +245,7 @@ export default function Home() {
           complaint={selectedComplaint}
           onClose={() => setSelectedComplaint(null)}
           onHandle={handleComplaint}
+          onEscalate={handleEscalate}
         />
       )}
 
