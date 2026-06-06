@@ -10,7 +10,7 @@ import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, HandleRecord } from '@/types/complaint';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus } from '@/types/complaint';
 
 const STORAGE_KEY = 'complaint_records';
 
@@ -95,26 +95,41 @@ export default function Home() {
 
   const handleComplaint = (id: string, data: HandleFormData) => {
     const now = new Date().toISOString();
-    const newRecord: HandleRecord = {
-      id: generateId(),
-      status: data.status,
-      handleOpinion: data.handleOpinion,
-      replyTime: data.replyTime,
-      operatedAt: now,
-    };
     setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              status: data.status,
-              handleOpinion: data.handleOpinion,
-              replyTime: data.replyTime,
-              updatedAt: now,
-              handleRecords: [...c.handleRecords, newRecord],
-            }
-          : c
-      )
+      prev.map((c) => {
+        if (c.id !== id) return c;
+
+        const lastRecord = c.handleRecords.length > 0
+          ? c.handleRecords[c.handleRecords.length - 1]
+          : null;
+
+        const hasChanged = !lastRecord
+          || lastRecord.status !== data.status
+          || lastRecord.handleOpinion !== data.handleOpinion
+          || lastRecord.replyTime !== data.replyTime;
+
+        const newRecords = hasChanged
+          ? [
+              ...c.handleRecords,
+              {
+                id: generateId(),
+                status: data.status,
+                handleOpinion: data.handleOpinion,
+                replyTime: data.replyTime,
+                operatedAt: now,
+              },
+            ]
+          : c.handleRecords;
+
+        return {
+          ...c,
+          status: data.status,
+          handleOpinion: data.handleOpinion,
+          replyTime: data.replyTime,
+          updatedAt: now,
+          handleRecords: newRecords,
+        };
+      })
     );
     setSelectedComplaint(null);
     showToast('处理记录已保存！');

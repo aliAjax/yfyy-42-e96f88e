@@ -58,21 +58,72 @@ export function getLast7Days(): { date: string; dateLabel: string }[] {
 
 type LegacyComplaint = Omit<Complaint, 'handleRecords'> & { handleRecords?: HandleRecord[] };
 
+function getInitialTime(c: LegacyComplaint): string {
+  if (c.createdAt) return c.createdAt;
+  if (c.receiveTime) {
+    const t = new Date(c.receiveTime.replace(' ', 'T'));
+    if (!isNaN(t.getTime())) return t.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function getUpdateTime(c: LegacyComplaint): string {
+  return c.updatedAt || c.createdAt || new Date().toISOString();
+}
+
+function getMidTime(start: string, end: string): string {
+  const s = new Date(start).getTime();
+  const e = new Date(end).getTime();
+  return new Date(s + (e - s) / 2).toISOString();
+}
+
 export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
   return complaints.map((c) => {
     if (c.handleRecords && Array.isArray(c.handleRecords) && c.handleRecords.length > 0) {
       return c as Complaint;
     }
+
     const handleRecords: HandleRecord[] = [];
-    if (c.handleOpinion || c.status !== 'pending') {
+    const initialTime = getInitialTime(c);
+    const updateTime = getUpdateTime(c);
+    const status = c.status as ComplaintStatus;
+
+    handleRecords.push({
+      id: generateId(),
+      status: 'pending',
+      handleOpinion: '',
+      replyTime: '',
+      operatedAt: initialTime,
+    });
+
+    if (status === 'processing') {
       handleRecords.push({
         id: generateId(),
-        status: c.status as ComplaintStatus,
+        status: 'processing',
         handleOpinion: c.handleOpinion || '',
-        replyTime: c.replyTime || '',
-        operatedAt: c.updatedAt || c.createdAt || new Date().toISOString(),
+        replyTime: '',
+        operatedAt: updateTime,
       });
     }
+
+    if (status === 'replied') {
+      const midTime = getMidTime(initialTime, updateTime);
+      handleRecords.push({
+        id: generateId(),
+        status: 'processing',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: midTime,
+      });
+      handleRecords.push({
+        id: generateId(),
+        status: 'replied',
+        handleOpinion: c.handleOpinion || '',
+        replyTime: c.replyTime || '',
+        operatedAt: updateTime,
+      });
+    }
+
     return {
       ...c,
       handleRecords,

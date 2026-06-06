@@ -14,7 +14,15 @@ export const mockComplaints: Complaint[] = [
     replyTime: '',
     createdAt: '2026-06-03T09:30:00.000Z',
     updatedAt: '2026-06-03T09:30:00.000Z',
-    handleRecords: [],
+    handleRecords: [
+      {
+        id: 'r1-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-03T09:30:00.000Z',
+      },
+    ],
   },
   {
     id: '2',
@@ -32,6 +40,13 @@ export const mockComplaints: Complaint[] = [
     handleRecords: [
       {
         id: 'r2-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-02T14:20:00.000Z',
+      },
+      {
+        id: 'r2-2',
         status: 'processing',
         handleOpinion: '已转交给社区文化站，正在评估可行性和预算。',
         replyTime: '',
@@ -55,13 +70,20 @@ export const mockComplaints: Complaint[] = [
     handleRecords: [
       {
         id: 'r3-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-01T16:45:00.000Z',
+      },
+      {
+        id: 'r3-2',
         status: 'processing',
         handleOpinion: '已接到诉求，正在联系物业维修师傅。',
         replyTime: '',
         operatedAt: '2026-06-01T17:00:00.000Z',
       },
       {
-        id: 'r3-2',
+        id: 'r3-3',
         status: 'replied',
         handleOpinion: '已联系物业维修师傅上门处理，问题已解决，居民表示满意。',
         replyTime: '2026-06-02 10:30',
@@ -85,6 +107,13 @@ export const mockComplaints: Complaint[] = [
     handleRecords: [
       {
         id: 'r4-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-04T10:00:00.000Z',
+      },
+      {
+        id: 'r4-2',
         status: 'replied',
         handleOpinion: '已电话告知认证流程：携带身份证和社保卡到社区服务中心即可办理，也可以在手机APP上自助认证。',
         replyTime: '2026-06-04 10:15',
@@ -105,7 +134,15 @@ export const mockComplaints: Complaint[] = [
     replyTime: '',
     createdAt: '2026-06-05T08:30:00.000Z',
     updatedAt: '2026-06-05T08:30:00.000Z',
-    handleRecords: [],
+    handleRecords: [
+      {
+        id: 'r5-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-05T08:30:00.000Z',
+      },
+    ],
   },
   {
     id: '6',
@@ -123,13 +160,20 @@ export const mockComplaints: Complaint[] = [
     handleRecords: [
       {
         id: 'r6-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-03T11:00:00.000Z',
+      },
+      {
+        id: 'r6-2',
         status: 'processing',
         handleOpinion: '已收到上级转办的建议，正在研究活动方案。',
         replyTime: '',
         operatedAt: '2026-06-03T14:00:00.000Z',
       },
       {
-        id: 'r6-2',
+        id: 'r6-3',
         status: 'processing',
         handleOpinion: '已纳入活动计划，预计下月初举办第一期亲子手工活动。',
         replyTime: '',
@@ -150,7 +194,15 @@ export const mockComplaints: Complaint[] = [
     replyTime: '',
     createdAt: '2026-06-04T15:30:00.000Z',
     updatedAt: '2026-06-04T15:30:00.000Z',
-    handleRecords: [],
+    handleRecords: [
+      {
+        id: 'r7-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-04T15:30:00.000Z',
+      },
+    ],
   },
   {
     id: '8',
@@ -168,6 +220,13 @@ export const mockComplaints: Complaint[] = [
     handleRecords: [
       {
         id: 'r8-1',
+        status: 'pending',
+        handleOpinion: '',
+        replyTime: '',
+        operatedAt: '2026-06-02T09:00:00.000Z',
+      },
+      {
+        id: 'r8-2',
         status: 'replied',
         handleOpinion: '已安排社区志愿者上门服务，定期帮老人代购生活用品。',
         replyTime: '2026-06-02 14:00',
