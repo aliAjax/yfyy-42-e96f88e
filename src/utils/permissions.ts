@@ -23,7 +23,8 @@ export type PermissionAction =
   | 'view_statistics'
   | 'export_data'
   | 'import_data'
-  | 'print_receipt';
+  | 'print_receipt'
+  | 'backup_restore';
 
 const rolePermissions: Record<UserRole, PermissionAction[]> = {
   registrar: [
@@ -50,6 +51,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'export_data',
     'import_data',
     'print_receipt',
+    'backup_restore',
   ],
 };
 
@@ -65,6 +67,7 @@ const permissionLabels: Record<PermissionAction, string> = {
   export_data: '导出数据',
   import_data: '批量导入',
   print_receipt: '打印回执',
+  backup_restore: '备份与恢复',
 };
 
 const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
@@ -78,7 +81,7 @@ const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
   },
   {
     group: '系统管理',
-    permissions: ['manage_templates', 'view_statistics', 'export_data', 'import_data'],
+    permissions: ['manage_templates', 'view_statistics', 'export_data', 'import_data', 'backup_restore'],
   },
   {
     group: '其他功能',

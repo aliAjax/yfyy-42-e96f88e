@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload, FileText, Lock } from 'lucide-react';
+import { BarChart3, X, Upload, FileText, Lock, Database } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
@@ -7,6 +7,7 @@ import DetailModal from '@/components/DetailModal';
 import Dashboard from '@/components/Dashboard';
 import ImportModal from '@/components/ImportModal';
 import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
+import BackupRestoreModal from '@/components/BackupRestoreModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
@@ -25,6 +26,7 @@ export default function Home() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showTemplateManage, setShowTemplateManage] = useState(false);
+  const [showBackupRestore, setShowBackupRestore] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({
     show: false,
@@ -38,6 +40,7 @@ export default function Home() {
   const canManageTemplates = hasPermission(currentRole, 'manage_templates');
   const canImport = hasPermission(currentRole, 'import_data');
   const canDelete = hasPermission(currentRole, 'delete_complaint');
+  const canBackupRestore = hasPermission(currentRole, 'backup_restore');
 
   const dashboardStats = useMemo(
     () => calculateDashboardStats(complaints, now),
@@ -243,6 +246,20 @@ export default function Home() {
     showToast('诉求记录已删除');
   };
 
+  const handleRestoreComplete = () => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const migrated = migrateComplaintData(parsed);
+        setComplaints(migrated);
+      } catch {
+        // ignore
+      }
+    }
+    showToast('数据恢复完成！');
+  };
+
   const counts: Record<ComplaintStatus, number> = {
     pending: complaints.filter((c) => c.status === 'pending').length,
     processing: complaints.filter((c) => c.status === 'processing').length,
@@ -273,6 +290,28 @@ export default function Home() {
             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <h2 className="text-base font-semibold text-slate-800">诉求管理</h2>
               <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative group">
+                  <button
+                    onClick={() => canBackupRestore && setShowBackupRestore(true)}
+                    disabled={!canBackupRestore}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                      canBackupRestore
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    title={canBackupRestore ? '备份与恢复' : getDisabledReason(currentRole, 'backup_restore')}
+                  >
+                    {!canBackupRestore && <Lock className="w-3.5 h-3.5" />}
+                    <Database className="w-4 h-4" />
+                    备份恢复
+                  </button>
+                  {!canBackupRestore && (
+                    <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      {getDisabledReason(currentRole, 'backup_restore')}
+                    </div>
+                  )}
+                </div>
+
                 <div className="relative group">
                   <button
                     onClick={() => canManageTemplates && setShowTemplateManage(true)}
@@ -404,6 +443,13 @@ export default function Home() {
       {showTemplateManage && (
         <ReplyTemplateManageModal
           onClose={() => setShowTemplateManage(false)}
+        />
+      )}
+
+      {showBackupRestore && (
+        <BackupRestoreModal
+          onClose={() => setShowBackupRestore(false)}
+          onRestoreComplete={handleRestoreComplete}
         />
       )}
 
