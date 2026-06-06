@@ -84,7 +84,7 @@ export function exportComplaintsToCSV(complaints: Complaint[]): { success: boole
     const fileName = generateExportFileName();
     downloadCSV(csvContent, fileName);
     return { success: true, message: `成功导出 ${complaints.length} 条诉求记录` };
-  } catch (error) {
+  } catch {
     return { success: false, message: '导出失败，请稍后重试' };
   }
 }
