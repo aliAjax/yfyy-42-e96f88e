@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload, FileText, Lock, Database } from 'lucide-react';
+import { BarChart3, X, Upload, FileText, Lock, Database, Clock } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
@@ -8,6 +8,7 @@ import Dashboard from '@/components/Dashboard';
 import ImportModal from '@/components/ImportModal';
 import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
 import BackupRestoreModal from '@/components/BackupRestoreModal';
+import TimeLimitRuleManageModal from '@/components/TimeLimitRuleManageModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
@@ -27,6 +28,8 @@ export default function Home() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showTemplateManage, setShowTemplateManage] = useState(false);
   const [showBackupRestore, setShowBackupRestore] = useState(false);
+  const [showTimeLimitManage, setShowTimeLimitManage] = useState(false);
+  const [timeLimitRulesVersion, setTimeLimitRulesVersion] = useState(0);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({
     show: false,
@@ -38,17 +41,20 @@ export default function Home() {
 
   const canViewStatistics = hasPermission(currentRole, 'view_statistics');
   const canManageTemplates = hasPermission(currentRole, 'manage_templates');
+  const canManageTimeLimitRules = hasPermission(currentRole, 'manage_time_limit_rules');
   const canImport = hasPermission(currentRole, 'import_data');
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const canBackupRestore = hasPermission(currentRole, 'backup_restore');
 
   const dashboardStats = useMemo(
     () => calculateDashboardStats(complaints, now),
-    [complaints, now]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [complaints, now, timeLimitRulesVersion]
   );
   const overdueCount = useMemo(
     () => calculateOverdueCount(complaints, now),
-    [complaints, now]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [complaints, now, timeLimitRulesVersion]
   );
 
   useEffect(() => {
@@ -257,7 +263,13 @@ export default function Home() {
         // ignore
       }
     }
+    setTimeLimitRulesVersion((v) => v + 1);
     showToast('数据恢复完成！');
+  };
+
+  const handleTimeLimitRulesSave = () => {
+    setTimeLimitRulesVersion((v) => v + 1);
+    showToast('时限规则已保存，统计数据已重新计算');
   };
 
   const counts: Record<ComplaintStatus, number> = {
@@ -336,6 +348,28 @@ export default function Home() {
 
                 <div className="relative group">
                   <button
+                    onClick={() => canManageTimeLimitRules && setShowTimeLimitManage(true)}
+                    disabled={!canManageTimeLimitRules}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                      canManageTimeLimitRules
+                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    title={canManageTimeLimitRules ? '时限规则管理' : getDisabledReason(currentRole, 'manage_time_limit_rules')}
+                  >
+                    {!canManageTimeLimitRules && <Lock className="w-3.5 h-3.5" />}
+                    <Clock className="w-4 h-4" />
+                    时限规则
+                  </button>
+                  {!canManageTimeLimitRules && (
+                    <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      {getDisabledReason(currentRole, 'manage_time_limit_rules')}
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative group">
+                  <button
                     onClick={() => canImport && setShowImportModal(true)}
                     disabled={!canImport}
                     className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
@@ -402,6 +436,7 @@ export default function Home() {
           onDelete={canDelete ? handleDelete : undefined}
           now={now}
           currentRole={currentRole}
+          timeLimitRulesVersion={timeLimitRulesVersion}
         />
       )}
 
@@ -450,6 +485,13 @@ export default function Home() {
         <BackupRestoreModal
           onClose={() => setShowBackupRestore(false)}
           onRestoreComplete={handleRestoreComplete}
+        />
+      )}
+
+      {showTimeLimitManage && (
+        <TimeLimitRuleManageModal
+          onClose={() => setShowTimeLimitManage(false)}
+          onSave={handleTimeLimitRulesSave}
         />
       )}
 

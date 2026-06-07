@@ -1,5 +1,6 @@
 import type { Complaint } from '@/types/complaint';
 import type { ReplyTemplate } from '@/types/replyTemplate';
+import type { TimeLimitRule } from '@/types/complaint';
 import {
   BACKUP_VERSION,
   type BackupFile,
@@ -12,6 +13,7 @@ import {
   type ImportPreviewResult,
 } from '@/types/backup';
 import { migrateComplaintData } from './helpers';
+import { getTimeLimitRules, saveTimeLimitRules } from './overdue';
 
 const COMPLAINT_STORAGE_KEY = 'complaint_records';
 const TEMPLATE_STORAGE_KEY = 'reply_templates';
@@ -42,6 +44,10 @@ function getCurrentTemplates(): ReplyTemplate[] {
   return [];
 }
 
+function getCurrentTimeLimitRules(): TimeLimitRule[] {
+  return getTimeLimitRules();
+}
+
 function getDataSummary(data: BackupDataV1) {
   const totalHandleRecords = data.complaints.reduce(
     (sum, c) => sum + (c.handleRecords?.length || 0),
@@ -57,16 +63,19 @@ function getDataSummary(data: BackupDataV1) {
     templateCount: data.replyTemplates.length,
     totalHandleRecords,
     totalEscalationRecords,
+    timeLimitRuleCount: data.timeLimitRules?.length || 0,
   };
 }
 
 export function createBackup(): BackupFile {
   const complaints = getCurrentComplaints();
   const replyTemplates = getCurrentTemplates();
+  const timeLimitRules = getCurrentTimeLimitRules();
 
   const data: BackupDataV1 = {
     complaints,
     replyTemplates,
+    timeLimitRules,
   };
 
   return {
@@ -165,6 +174,33 @@ function validateTemplate(t: unknown): string[] {
   }
   if (template.updatedAt && typeof template.updatedAt !== 'string') {
     errors.push(`ID ${template.id || '未知'}: updatedAt 格式不正确`);
+  }
+
+  return errors;
+}
+
+function validateTimeLimitRule(r: unknown): string[] {
+  const errors: string[] = [];
+  if (!r || typeof r !== 'object') {
+    return ['时限规则数据格式不正确'];
+  }
+
+  const rule = r as Record<string, unknown>;
+
+  if (!rule.id || typeof rule.id !== 'string') {
+    errors.push('缺少 id 字段');
+  }
+  if (!rule.type || typeof rule.type !== 'string') {
+    errors.push(`ID ${rule.id || '未知'}: 缺少诉求类型字段`);
+  }
+  if (!rule.source || typeof rule.source !== 'string') {
+    errors.push(`ID ${rule.id || '未知'}: 缺少来源渠道字段`);
+  }
+  if (typeof rule.timeLimitHours !== 'number' || rule.timeLimitHours < 0) {
+    errors.push(`ID ${rule.id || '未知'}: 处理时限格式不正确`);
+  }
+  if (typeof rule.warningHours !== 'number' || rule.warningHours < 0) {
+    errors.push(`ID ${rule.id || '未知'}: 预警时长格式不正确`);
   }
 
   return errors;
@@ -316,6 +352,19 @@ export function validateBackup(fileContent: string): ValidationResult {
     });
   }
 
+  if (data.timeLimitRules) {
+    if (!Array.isArray(data.timeLimitRules)) {
+      errors.push('备份数据中时限规则格式不正确');
+    } else {
+      data.timeLimitRules.forEach((r, index) => {
+        const errs = validateTimeLimitRule(r);
+        if (errs.length > 0) {
+          errors.push(`时限规则 #${index + 1}: ${errs.join('；')}`);
+        }
+      });
+    }
+  }
+
   return {
     valid: errors.length === 0,
     version,
@@ -456,6 +505,7 @@ export function applyImport(
   try {
     const currentComplaints = getCurrentComplaints();
     const currentTemplates = getCurrentTemplates();
+    const currentTimeLimitRules = getCurrentTimeLimitRules();
 
     const validTemplates = filterValidTemplates(backupData.replyTemplates);
     const hasInvalidTemplates = validTemplates.length !== backupData.replyTemplates.length;
@@ -471,10 +521,12 @@ export function applyImport(
 
     let finalComplaints: Complaint[];
     let finalTemplates: ReplyTemplate[];
+    let finalTimeLimitRules: TimeLimitRule[];
 
     if (mode === 'overwrite_all') {
       finalComplaints = backupData.complaints;
       finalTemplates = backupData.replyTemplates;
+      finalTimeLimitRules = backupData.timeLimitRules || currentTimeLimitRules;
     } else {
       const currentComplaintMap = new Map(currentComplaints.map((c) => [c.id, c]));
       const currentTemplateMap = new Map(currentTemplates.map((t) => [t.id, t]));
@@ -507,14 +559,29 @@ export function applyImport(
         }
       }
       finalTemplates = Array.from(mergedTemplateMap.values());
+
+      if (backupData.timeLimitRules && backupData.timeLimitRules.length > 0) {
+        if (mode === 'merge_overwrite') {
+          finalTimeLimitRules = backupData.timeLimitRules;
+        } else {
+          finalTimeLimitRules = currentTimeLimitRules;
+        }
+      } else {
+        finalTimeLimitRules = currentTimeLimitRules;
+      }
     }
 
     localStorage.setItem(COMPLAINT_STORAGE_KEY, JSON.stringify(finalComplaints));
     localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(finalTemplates));
+    saveTimeLimitRules(finalTimeLimitRules);
+
+    const ruleMsg = backupData.timeLimitRules
+      ? `，${finalTimeLimitRules.length} 条时限规则`
+      : '';
 
     return {
       success: true,
-      message: `恢复成功！共 ${finalComplaints.length} 条诉求，${finalTemplates.length} 个模板`,
+      message: `恢复成功！共 ${finalComplaints.length} 条诉求，${finalTemplates.length} 个模板${ruleMsg}`,
     };
   } catch (e) {
     console.error('Import failed:', e);

@@ -20,9 +20,10 @@ interface DetailModalProps {
   onDelete?: (id: string) => void;
   now?: Date;
   currentRole: UserRole;
+  timeLimitRulesVersion?: number;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, now, currentRole }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, now, currentRole, timeLimitRulesVersion }: DetailModalProps) {
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
   const canUpdateOpinion = hasPermission(currentRole, 'update_handle_opinion');
   const canHandle = canUpdateStatus || canUpdateOpinion;
@@ -50,7 +51,8 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const overdueInfo = useMemo(() => {
     if (!complaint) return null;
     return calculateOverdueInfo(complaint, now);
-  }, [complaint, now]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complaint, now, timeLimitRulesVersion]);
 
   useEffect(() => {
     if (complaint) {

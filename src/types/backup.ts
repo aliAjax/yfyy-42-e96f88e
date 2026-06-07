@@ -1,7 +1,8 @@
 import type { Complaint } from './complaint';
 import type { ReplyTemplate } from './replyTemplate';
+import type { TimeLimitRule } from './complaint';
 
-export const BACKUP_VERSION = '1.0.0' as const;
+export const BACKUP_VERSION = '1.1.0' as const;
 
 export type BackupVersion = string;
 
@@ -17,11 +18,13 @@ export interface BackupDataSummary {
   templateCount: number;
   totalHandleRecords: number;
   totalEscalationRecords: number;
+  timeLimitRuleCount: number;
 }
 
 export interface BackupDataV1 {
   complaints: Complaint[];
   replyTemplates: ReplyTemplate[];
+  timeLimitRules?: TimeLimitRule[];
 }
 
 export interface BackupFile {

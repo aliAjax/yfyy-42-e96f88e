@@ -20,6 +20,7 @@ export type PermissionAction =
   | 'escalate_complaint'
   | 'delete_complaint'
   | 'manage_templates'
+  | 'manage_time_limit_rules'
   | 'view_statistics'
   | 'export_data'
   | 'import_data'
@@ -47,6 +48,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'escalate_complaint',
     'delete_complaint',
     'manage_templates',
+    'manage_time_limit_rules',
     'view_statistics',
     'export_data',
     'import_data',
@@ -63,6 +65,7 @@ const permissionLabels: Record<PermissionAction, string> = {
   escalate_complaint: '升级处理',
   delete_complaint: '删除记录',
   manage_templates: '管理回复模板',
+  manage_time_limit_rules: '管理时限规则',
   view_statistics: '查看数据统计',
   export_data: '导出数据',
   import_data: '批量导入',
@@ -81,7 +84,7 @@ const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
   },
   {
     group: '系统管理',
-    permissions: ['manage_templates', 'view_statistics', 'export_data', 'import_data', 'backup_restore'],
+    permissions: ['manage_templates', 'manage_time_limit_rules', 'view_statistics', 'export_data', 'import_data', 'backup_restore'],
   },
   {
     group: '其他功能',
