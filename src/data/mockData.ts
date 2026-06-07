@@ -1,6 +1,17 @@
-import type { Complaint, VisitBackStatus, VisitBackRecord } from '@/types/complaint';
+import type { Complaint, VisitBackStatus, VisitBackRecord, MergeStatus, MergeRecord } from '@/types/complaint';
 
-const rawComplaints: Array<Omit<Complaint, 'visitBackStatus' | 'visitBackRecords'> & { visitBackStatus?: VisitBackStatus; visitBackRecords?: VisitBackRecord[] }> = [
+const rawComplaints: Array<
+  Omit<Complaint, 'visitBackStatus' | 'visitBackRecords' | 'mergeStatus' | 'mergedRecords' | 'sources' | 'masterComplaintId' | 'masterComplaintName' | 'duplicateGroupId'> & {
+    visitBackStatus?: VisitBackStatus;
+    visitBackRecords?: VisitBackRecord[];
+    mergeStatus?: MergeStatus;
+    mergedRecords?: MergeRecord[];
+    sources?: string[];
+    masterComplaintId?: string;
+    masterComplaintName?: string;
+    duplicateGroupId?: string;
+  }
+> = [
   {
     id: '1',
     name: '张建国',

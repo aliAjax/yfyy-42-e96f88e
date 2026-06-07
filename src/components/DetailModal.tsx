@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock, Phone, RotateCcw, Star } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock, Phone, RotateCcw, Star, Copy } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
@@ -25,9 +25,15 @@ interface DetailModalProps {
   timeLimitRulesVersion?: number;
   handlers?: HandlerUser[];
   currentHandlerId?: string;
+  allComplaints?: Complaint[];
+  onViewDuplicates?: () => void;
+  onViewMaster?: () => void;
+  onMerge?: (masterId: string, mergedIds: string[], reason?: string) => void;
+  canMerge?: boolean;
+  canViewMerged?: boolean;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, onVisitBack, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, onVisitBack, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId, allComplaints = [], onViewDuplicates, onViewMaster, onMerge, canMerge: propCanMerge, canViewMerged: propCanViewMerged }: DetailModalProps) {
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
   const canUpdateOpinion = hasPermission(currentRole, 'update_handle_opinion');
   const canHandle = canUpdateStatus || canUpdateOpinion;
@@ -38,6 +44,8 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const canManageVisitBack = hasPermission(currentRole, 'manage_visit_back');
   const canViewVisitBack = hasPermission(currentRole, 'view_visit_back');
+  const canMerge = propCanMerge ?? hasPermission(currentRole, 'merge_complaint');
+  const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
 
   const handleDisabledReason = getDisabledReason(currentRole, 'update_status');
   const escalateDisabledReason = getDisabledReason(currentRole, 'escalate_complaint');
@@ -284,6 +292,31 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                       </span>
                     )}
                   </div>
+                  {canViewMerged && (
+                    <div>
+                      <span className="text-slate-500">合并状态：</span>
+                      {complaint.mergeStatus === 'master' ? (
+                        <span className="text-emerald-600 font-medium flex items-center gap-1">
+                          <Copy className="w-3.5 h-3.5" />
+                          主诉求（已合并 {complaint.mergedRecords?.length || 0} 条）
+                        </span>
+                      ) : complaint.mergeStatus === 'merged' ? (
+                        <span className="text-slate-600 font-medium flex items-center gap-1">
+                          已合并
+                          {complaint.masterComplaintName && (
+                            <button
+                              onClick={onViewMaster}
+                              className="text-blue-600 hover:text-blue-700 underline ml-1"
+                            >
+                              查看主诉求
+                            </button>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 font-medium">正常</span>
+                      )}
+                    </div>
+                  )}
                   {canViewVisitBack && complaint.status === 'replied' && (
                     <div>
                       <span className="text-slate-500">回访状态：</span>
@@ -399,6 +432,68 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                         )}
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {canViewMerged && complaint.mergeStatus === 'master' && complaint.mergedRecords && complaint.mergedRecords.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Copy className="w-4 h-4 text-emerald-600" />
+                  合并历史
+                </h4>
+                <div className="space-y-2">
+                  {complaint.mergedRecords.map((record, index) => (
+                    <div
+                      key={record.id}
+                      className="bg-emerald-50 border border-emerald-200 rounded-lg p-3"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-emerald-700">
+                          第 {index + 1} 次合并
+                        </span>
+                        <span className="text-xs text-emerald-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {record.mergedAt}
+                        </span>
+                      </div>
+                      <div className="text-sm text-slate-700 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 text-xs">合并诉求：</span>
+                          <span className="font-medium text-emerald-700">{record.mergedComplaintName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 text-xs">操作人：</span>
+                          <span className="text-slate-600">{record.mergedBy}</span>
+                        </div>
+                        {record.mergeReason && (
+                          <div className="pt-1 mt-1 border-t border-emerald-100">
+                            <span className="text-slate-500 text-xs">合并原因：</span>
+                            <span className="text-slate-600">{record.mergeReason}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {canViewMerged && complaint.sources && complaint.sources.length > 1 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-violet-600" />
+                  来源渠道（{complaint.sources.length} 个）
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {complaint.sources.map((source, index) => (
+                    <span
+                      key={index}
+                      className="text-xs bg-violet-50 text-violet-700 px-2.5 py-1 rounded-md border border-violet-200"
+                    >
+                      {source}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -531,6 +626,17 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   {complaint.assigneeName ? '更改承办人' : '分派承办人'}
                 </button>
               </div>
+            )}
+
+            {canViewMerged && complaint.mergeStatus === 'active' && onViewDuplicates && (
+              <button
+                type="button"
+                onClick={onViewDuplicates}
+                className="w-full px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors flex items-center justify-center gap-2 text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200"
+              >
+                <Copy className="w-4 h-4" />
+                查看疑似重复
+              </button>
             )}
 
             {complaint.status !== 'replied' && (

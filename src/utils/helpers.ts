@@ -56,7 +56,7 @@ export function getLast7Days(): { date: string; dateLabel: string }[] {
   return days;
 }
 
-type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | 'assignmentRecords' | 'visitBackStatus' | 'visitBackRecords'> & {
+type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | 'assignmentRecords' | 'visitBackStatus' | 'visitBackRecords' | 'mergeStatus' | 'mergedRecords' | 'sources'> & {
   handleRecords?: HandleRecord[];
   escalationRecords?: EscalationRecord[];
   assigneeId?: string;
@@ -64,6 +64,9 @@ type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | '
   assignmentRecords?: AssignmentRecord[];
   visitBackStatus?: VisitBackStatus;
   visitBackRecords?: VisitBackRecord[];
+  mergeStatus?: string;
+  mergedRecords?: any[];
+  sources?: string[];
 };
 
 function getInitialTime(c: LegacyComplaint): string {
@@ -252,6 +255,10 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
 
     const visitBackStatus = getDefaultVisitBackStatus(c);
 
+    const mergeStatus = (c.mergeStatus as any) || 'active';
+    const mergedRecords = c.mergedRecords && Array.isArray(c.mergedRecords) ? c.mergedRecords : [];
+    const sources = c.sources && Array.isArray(c.sources) && c.sources.length > 0 ? c.sources : [c.source || ''];
+
     return {
       ...c,
       handleRecords,
@@ -261,6 +268,9 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
       assigneeName: c.assigneeName,
       visitBackStatus,
       visitBackRecords,
+      mergeStatus,
+      mergedRecords,
+      sources,
     } as Complaint;
   });
 }

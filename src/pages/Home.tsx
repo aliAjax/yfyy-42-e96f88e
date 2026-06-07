@@ -6,6 +6,7 @@ import ComplaintList from '@/components/ComplaintList';
 import DetailModal from '@/components/DetailModal';
 import Dashboard from '@/components/Dashboard';
 import ImportModal from '@/components/ImportModal';
+import DuplicateGroupModal from '@/components/DuplicateGroupModal';
 import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
 import BackupRestoreModal from '@/components/BackupRestoreModal';
 import TimeLimitRuleManageModal from '@/components/TimeLimitRuleManageModal';
@@ -15,7 +16,8 @@ import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus } from '@/types/complaint';
+import { mergeComplaints, getSimilarComplaintsForOne, getMasterComplaint, getActiveComplaints } from '@/utils/merge';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus, DuplicateGroup } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
@@ -30,6 +32,9 @@ export default function Home() {
   const [showTemplateManage, setShowTemplateManage] = useState(false);
   const [showBackupRestore, setShowBackupRestore] = useState(false);
   const [showTimeLimitManage, setShowTimeLimitManage] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateModalComplaintId, setDuplicateModalComplaintId] = useState<string | null>(null);
+  const [showMerged, setShowMerged] = useState(false);
   const [timeLimitRulesVersion, setTimeLimitRulesVersion] = useState(0);
   const [complaintsLoaded, setComplaintsLoaded] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
@@ -50,13 +55,19 @@ export default function Home() {
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const canBackupRestore = hasPermission(currentRole, 'backup_restore');
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
+  const canMerge = hasPermission(currentRole, 'merge_complaint');
+  const canViewMerged = hasPermission(currentRole, 'view_merged_complaints');
 
   const visibleComplaints = useMemo(() => {
+    let result = complaints;
     if (!canViewAll) {
-      return currentHandlerId ? complaints.filter((c) => c.assigneeId === currentHandlerId) : [];
+      result = currentHandlerId ? complaints.filter((c) => c.assigneeId === currentHandlerId) : [];
     }
-    return complaints;
-  }, [complaints, canViewAll, currentHandlerId]);
+    if (!showMerged) {
+      result = result.filter((c) => c.mergeStatus !== 'merged');
+    }
+    return result;
+  }, [complaints, canViewAll, currentHandlerId, showMerged]);
 
   const dashboardStats = useMemo(
     () => calculateDashboardStats(visibleComplaints, now),
@@ -159,6 +170,12 @@ export default function Home() {
       assignmentRecords: [],
       visitBackStatus: 'pending',
       visitBackRecords: [],
+      mergeStatus: 'active',
+      masterComplaintId: '',
+      masterComplaintName: '',
+      mergedRecords: [],
+      duplicateGroupId: '',
+      sources: data.source ? [data.source] : [''],
     };
     setComplaints((prev) => [newComplaint, ...prev]);
     showToast('诉求登记成功！');
@@ -183,6 +200,12 @@ export default function Home() {
       assignmentRecords: [],
       visitBackStatus: 'pending',
       visitBackRecords: [],
+      mergeStatus: 'active',
+      masterComplaintId: '',
+      masterComplaintName: '',
+      mergedRecords: [],
+      duplicateGroupId: '',
+      sources: data.source ? [data.source] : [''],
     }));
     setComplaints((prev) => [...newComplaints, ...prev]);
     setShowImportModal(false);
@@ -196,6 +219,54 @@ export default function Home() {
     }
     const result = exportComplaintsToCSV(filteredComplaints);
     showToast(result.message, result.success ? 'success' : 'error');
+  };
+
+  const handleViewDuplicates = (complaintId: string) => {
+    setDuplicateModalComplaintId(complaintId);
+    setShowDuplicateModal(true);
+  };
+
+  const handleMergeComplaints = (masterId: string, mergedIds: string[], mergeReason?: string) => {
+    if (!canMerge) {
+      showToast('无合并诉求权限', 'error');
+      return;
+    }
+
+    const masterComplaint = complaints.find((c) => c.id === masterId);
+    const complaintsToMerge = complaints.filter((c) => mergedIds.includes(c.id));
+
+    if (!masterComplaint || complaintsToMerge.length === 0) {
+      showToast('合并参数错误', 'error');
+      return;
+    }
+
+    const operatorName = currentRole === 'handler'
+      ? currentHandler?.name || ROLE_LABELS[currentRole]
+      : ROLE_LABELS[currentRole];
+
+    const mergedResults = mergeComplaints(masterComplaint, complaintsToMerge, operatorName, mergeReason);
+
+    const mergedIdsSet = new Set([masterId, ...mergedIds]);
+    const otherComplaints = complaints.filter((c) => !mergedIdsSet.has(c.id));
+
+    const updatedComplaints = [...otherComplaints, ...mergedResults];
+
+    setComplaints(updatedComplaints);
+
+    const updatedMaster = mergedResults.find((c) => c.id === masterId);
+    if (updatedMaster) {
+      setSelectedComplaint(updatedMaster);
+    }
+
+    setShowDuplicateModal(false);
+    showToast(`成功合并 ${mergedIds.length} 条诉求`);
+  };
+
+  const handleViewMaster = (complaintId: string) => {
+    const master = getMasterComplaint(complaints, complaintId);
+    if (master) {
+      setSelectedComplaint(master);
+    }
   };
 
   const canOperateComplaint = (complaint: Complaint) => {
@@ -809,7 +880,7 @@ export default function Home() {
             </div>
             <div className="h-[calc(100vh-220px)]">
               <ComplaintList
-                complaints={complaints}
+                complaints={visibleComplaints}
                 onCardClick={setSelectedComplaint}
                 onExport={handleExport}
                 now={now}
@@ -820,6 +891,13 @@ export default function Home() {
                 onBatchEscalate={handleBatchEscalate}
                 onBatchDelete={canDelete ? handleBatchDelete : undefined}
                 onBatchExport={handleBatchExport}
+                showMerged={showMerged}
+                onToggleShowMerged={setShowMerged}
+                onViewDuplicates={canViewMerged ? handleViewDuplicates : undefined}
+                onViewMaster={canViewMerged ? handleViewMaster : undefined}
+                allComplaints={complaints}
+                canMerge={canMerge}
+                canViewMerged={canViewMerged}
               />
             </div>
           </div>
@@ -840,6 +918,11 @@ export default function Home() {
           timeLimitRulesVersion={timeLimitRulesVersion}
           handlers={handlers}
           currentHandlerId={currentHandlerId}
+          allComplaints={complaints}
+          onViewDuplicates={canViewMerged ? () => handleViewDuplicates(selectedComplaint.id) : undefined}
+          onViewMaster={canViewMerged ? () => handleViewMaster(selectedComplaint.id) : undefined}
+          canMerge={canMerge}
+          canViewMerged={canViewMerged}
         />
       )}
 
@@ -875,6 +958,25 @@ export default function Home() {
         <ImportModal
           onClose={() => setShowImportModal(false)}
           onImport={handleBatchImport}
+          existingComplaints={complaints}
+        />
+      )}
+
+      {showDuplicateModal && duplicateModalComplaintId && (
+        <DuplicateGroupModal
+          targetComplaint={complaints.find((c) => c.id === duplicateModalComplaintId) || null}
+          allComplaints={complaints}
+          onClose={() => {
+            setShowDuplicateModal(false);
+            setDuplicateModalComplaintId(null);
+          }}
+          onMerge={handleMergeComplaints}
+          currentRole={currentRole}
+          onViewDetail={(complaint) => {
+            setSelectedComplaint(complaint);
+            setShowDuplicateModal(false);
+            setDuplicateModalComplaintId(null);
+          }}
         />
       )}
 

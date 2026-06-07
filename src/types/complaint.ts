@@ -2,6 +2,26 @@ export type ComplaintStatus = 'pending' | 'processing' | 'replied';
 
 export type VisitBackStatus = 'pending' | 'completed' | 'unsatisfied';
 
+export type MergeStatus = 'active' | 'merged' | 'master';
+
+export interface MergeRecord {
+  id: string;
+  mergedComplaintId: string;
+  mergedComplaintName: string;
+  mergedAt: string;
+  mergedBy: string;
+  mergeReason?: string;
+}
+
+export interface DuplicateGroup {
+  groupId: string;
+  mainComplaintId: string;
+  complaintIds: string[];
+  createdAt: string;
+  similarity: number;
+  matchReasons: string[];
+}
+
 export type SatisfactionLevel = 'very_satisfied' | 'satisfied' | 'neutral' | 'dissatisfied' | 'very_dissatisfied';
 
 export type OverdueLevel = 'normal' | 'warning' | 'overdue';
@@ -148,9 +168,15 @@ export interface Complaint {
   assignmentRecords: AssignmentRecord[];
   visitBackStatus: VisitBackStatus;
   visitBackRecords: VisitBackRecord[];
+  mergeStatus: MergeStatus;
+  masterComplaintId?: string;
+  masterComplaintName?: string;
+  mergedRecords: MergeRecord[];
+  duplicateGroupId?: string;
+  sources: string[];
 }
 
-export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords' | 'escalationRecords' | 'assigneeId' | 'assigneeName' | 'assignmentRecords' | 'visitBackStatus' | 'visitBackRecords'>;
+export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords' | 'escalationRecords' | 'assigneeId' | 'assigneeName' | 'assignmentRecords' | 'visitBackStatus' | 'visitBackRecords' | 'mergeStatus' | 'masterComplaintId' | 'masterComplaintName' | 'mergedRecords' | 'duplicateGroupId' | 'sources'>;
 
 export type AssignmentFormData = {
   assigneeId: string;
@@ -238,11 +264,18 @@ export interface ImportRowError {
   message: string;
 }
 
+export interface DuplicateRiskInfo {
+  hasRisk: boolean;
+  similarCount: number;
+  topSimilarity: number;
+}
+
 export interface ParsedImportRow {
   index: number;
   data: ComplaintFormData;
   errors: ImportRowError[];
   isValid: boolean;
+  duplicateRisk?: DuplicateRiskInfo;
 }
 
 export interface ImportPreviewResult {

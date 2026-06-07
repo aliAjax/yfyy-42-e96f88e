@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { ListFilter, Download, Lock, Search } from 'lucide-react';
+import { ListFilter, Download, Lock, Search, Copy } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import ViewFilterPanel from './ViewFilterPanel';
 import BatchActionBar from './BatchActionBar';
@@ -30,6 +30,13 @@ interface ComplaintListProps {
   onBatchEscalate?: (complaints: Complaint[], reason: string) => void;
   onBatchDelete?: (complaints: Complaint[]) => void;
   onBatchExport?: (complaints: Complaint[]) => void;
+  onViewDuplicates?: (complaintId: string) => void;
+  onViewMaster?: (complaintId: string) => void;
+  showMerged?: boolean;
+  onToggleShowMerged?: (show: boolean) => void;
+  allComplaints?: Complaint[];
+  canMerge?: boolean;
+  canViewMerged?: boolean;
 }
 
 export default function ComplaintList({
@@ -44,7 +51,16 @@ export default function ComplaintList({
   onBatchEscalate,
   onBatchDelete,
   onBatchExport,
+  onViewDuplicates,
+  onViewMaster,
+  showMerged = false,
+  onToggleShowMerged,
+  allComplaints,
+  canMerge: propCanMerge,
+  canViewMerged: propCanViewMerged,
 }: ComplaintListProps) {
+  const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
+  const canMerge = propCanMerge ?? hasPermission(currentRole, 'merge_complaint');
   const canExport = hasPermission(currentRole, 'export_data');
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
@@ -66,7 +82,10 @@ export default function ComplaintList({
   }, [complaints, canViewAll, currentHandlerId]);
 
   const filteredComplaints = useMemo(() => {
-    const result = applyFilter(visibleComplaints, filter, now);
+    let result = applyFilter(visibleComplaints, filter, now);
+    if (!showMerged) {
+      result = result.filter((c) => c.mergeStatus !== 'merged');
+    }
     return result.sort((a, b) => {
       const aOverdue =
         a.status !== 'replied' && calculateOverdueInfo(a, now).isOverdue;
@@ -76,7 +95,7 @@ export default function ComplaintList({
       if (!aOverdue && bOverdue) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [visibleComplaints, filter, now]);
+  }, [visibleComplaints, filter, now, showMerged]);
 
   const selectedComplaints = useMemo(() => {
     return filteredComplaints.filter((c) => selectedIds.has(c.id));
@@ -180,7 +199,21 @@ export default function ComplaintList({
             {canViewAll && <> / 总计 {complaints.length} 条</>}
           </p>
         </div>
-        <div className="relative group">
+        <div className="flex items-center gap-2">
+          {canViewMerged && onToggleShowMerged && (
+            <button
+              onClick={() => onToggleShowMerged(!showMerged)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                showMerged
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <Copy className="w-3.5 h-3.5" />
+              {showMerged ? '隐藏已合并' : '显示已合并'}
+            </button>
+          )}
+          <div className="relative group">
           <button
             onClick={() => {
               if (canExport && onExport) {
@@ -204,6 +237,7 @@ export default function ComplaintList({
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {hasAnyBatchPermission && selectedIds.size > 0 && (
@@ -246,6 +280,11 @@ export default function ComplaintList({
               selectable={hasAnyBatchPermission}
               selected={selectedIds.has(complaint.id)}
               onSelect={handleSelect}
+              onViewDuplicates={onViewDuplicates}
+              allComplaints={allComplaints || visibleComplaints}
+              onViewMaster={onViewMaster}
+              canMerge={canMerge}
+              canViewMerged={canViewMerged}
             />
           ))
         )}

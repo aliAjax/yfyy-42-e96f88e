@@ -1,4 +1,4 @@
-import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock, UserCheck, PhoneCall } from 'lucide-react';
+import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock, UserCheck, PhoneCall, Copy, ExternalLink } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import type { Complaint } from '@/types/complaint';
 import { VISIT_BACK_STATUS_OPTIONS, SATISFACTION_OPTIONS } from '@/types/complaint';
@@ -6,6 +6,7 @@ import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason } from '@/utils/permissions';
 import { useState } from 'react';
+import { findSimilarComplaints } from '@/utils/similarity';
 
 interface ComplaintCardProps {
   complaint: Complaint;
@@ -16,6 +17,11 @@ interface ComplaintCardProps {
   selectable?: boolean;
   selected?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
+  onViewDuplicates?: (complaintId: string) => void;
+  allComplaints?: Complaint[];
+  onViewMaster?: (complaintId: string) => void;
+  canMerge?: boolean;
+  canViewMerged?: boolean;
 }
 
 export default function ComplaintCard({
@@ -27,14 +33,43 @@ export default function ComplaintCard({
   selectable = false,
   selected = false,
   onSelect,
+  onViewDuplicates,
+  allComplaints = [],
+  onViewMaster,
+  canMerge: propCanMerge,
+  canViewMerged: propCanViewMerged,
 }: ComplaintCardProps) {
   const overdueInfo = calculateOverdueInfo(complaint, now);
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
+  const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
+  const canMerge = propCanMerge ?? hasPermission(currentRole, 'merge_complaint');
   const [showDeleteTip, setShowDeleteTip] = useState(false);
+
+  const similarCount = allComplaints.length > 0 && complaint.mergeStatus === 'active'
+    ? findSimilarComplaints(
+        {
+          name: complaint.name,
+          phone: complaint.phone,
+          type: complaint.type,
+          content: complaint.content,
+          source: complaint.source,
+          receiveTime: complaint.receiveTime,
+        },
+        allComplaints.filter(
+          (c) => c.id !== complaint.id && c.mergeStatus === 'active'
+        ),
+        0.5
+      ).length
+    : 0;
+
+  const isMerged = complaint.mergeStatus === 'merged';
+  const isMaster = complaint.mergeStatus === 'master';
 
   const getBorderClass = () => {
     if (selected) return 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/30';
+    if (isMerged) return 'border-slate-300 bg-slate-50 opacity-70';
+    if (isMaster) return 'border-emerald-400 ring-2 ring-emerald-100';
     if (overdueInfo.isOverdue) return 'border-red-400 ring-2 ring-red-100';
     if (overdueInfo.isWarning) return 'border-amber-400 ring-2 ring-amber-100';
     return 'border-slate-200 hover:border-blue-300';
@@ -78,6 +113,17 @@ export default function ComplaintCard({
           <div className="min-w-0">
             <div className="font-medium text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
               <span className="truncate">{complaint.name}</span>
+              {isMaster && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 rounded flex-shrink-0">
+                  <Copy className="w-3 h-3" />
+                  主诉求
+                </span>
+              )}
+              {isMerged && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-600 rounded flex-shrink-0">
+                  已合并
+                </span>
+              )}
               {overdueInfo.isOverdue && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 rounded flex-shrink-0">
                   <AlertCircle className="w-3 h-3" />
@@ -136,6 +182,30 @@ export default function ComplaintCard({
         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 rounded">
           {complaint.source}
         </span>
+        {canViewMerged && similarCount > 0 && onViewDuplicates && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDuplicates(complaint.id);
+            }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 rounded hover:bg-amber-100 transition-colors"
+          >
+            <Copy className="w-3 h-3" />
+            疑似重复 {similarCount + 1} 条
+          </button>
+        )}
+        {canViewMerged && isMerged && complaint.masterComplaintName && onViewMaster && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewMaster(complaint.id);
+            }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+            查看主诉求
+          </button>
+        )}
         {complaint.assigneeName ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 text-teal-700 rounded">
             <UserCheck className="w-3 h-3" />

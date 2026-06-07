@@ -1,18 +1,21 @@
 import { useState, useMemo } from 'react';
-import { X, Upload, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
+import { X, Upload, AlertTriangle, CheckCircle, FileText, Copy } from 'lucide-react';
 import { parseCSVText } from '@/utils/csvImport';
-import type { ImportPreviewResult, ParsedImportRow, ComplaintFormData } from '@/types/complaint';
+import type { ImportPreviewResult, ParsedImportRow, ComplaintFormData, Complaint } from '@/types/complaint';
+import { getDuplicateRiskInfo } from '@/utils/merge';
 
 interface ImportModalProps {
   onClose: () => void;
   onImport: (rows: ComplaintFormData[]) => void;
+  existingComplaints?: Complaint[];
 }
 
-export default function ImportModal({ onClose, onImport }: ImportModalProps) {
+export default function ImportModal({ onClose, onImport, existingComplaints = [] }: ImportModalProps) {
   const [csvText, setCsvText] = useState('');
   const [previewResult, setPreviewResult] = useState<ImportPreviewResult | null>(null);
   const [skipInvalid, setSkipInvalid] = useState(false);
   const [hasParsed, setHasParsed] = useState(false);
+  const [checkDuplicates, setCheckDuplicates] = useState(true);
 
   const sampleCSV = `姓名,电话,诉求类型,来源渠道,受理时间,具体内容
 张三,13812345678,投诉,来电,2024-01-15 09:30,小区垃圾桶清运不及时
@@ -22,6 +25,26 @@ export default function ImportModal({ onClose, onImport }: ImportModalProps) {
   const handleParse = () => {
     if (!csvText.trim()) return;
     const result = parseCSVText(csvText);
+
+    if (checkDuplicates && existingComplaints.length > 0) {
+      result.rows = result.rows.map((row) => {
+        if (!row.isValid) return row;
+        const riskInfo = getDuplicateRiskInfo(
+          {
+            phone: row.data.phone,
+            content: row.data.content,
+            type: row.data.type,
+          },
+          existingComplaints,
+          0.5
+        );
+        return {
+          ...row,
+          duplicateRisk: riskInfo,
+        };
+      });
+    }
+
     setPreviewResult(result);
     setHasParsed(true);
   };
@@ -29,6 +52,13 @@ export default function ImportModal({ onClose, onImport }: ImportModalProps) {
   const validRows = useMemo(() => {
     if (!previewResult) return [];
     return previewResult.rows.filter((row) => row.isValid);
+  }, [previewResult]);
+
+  const duplicateRiskCount = useMemo(() => {
+    if (!previewResult) return 0;
+    return previewResult.rows.filter(
+      (row) => row.isValid && row.duplicateRisk?.hasRisk
+    ).length;
   }, [previewResult]);
 
   const handleConfirmImport = () => {
@@ -115,7 +145,7 @@ export default function ImportModal({ onClose, onImport }: ImportModalProps) {
 
           {hasParsed && previewResult && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div className="bg-slate-50 rounded-xl p-4 text-center">
                   <div className="text-2xl font-bold text-slate-800">{previewResult.total}</div>
                   <div className="text-xs text-slate-500 mt-1">总记录数</div>
@@ -127,6 +157,10 @@ export default function ImportModal({ onClose, onImport }: ImportModalProps) {
                 <div className="bg-red-50 rounded-xl p-4 text-center">
                   <div className="text-2xl font-bold text-red-600">{previewResult.invalidCount}</div>
                   <div className="text-xs text-red-600 mt-1">异常记录</div>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-4 text-center">
+                  <div className="text-2xl font-bold text-amber-600">{duplicateRiskCount}</div>
+                  <div className="text-xs text-amber-600 mt-1">疑似重复</div>
                 </div>
               </div>
 
@@ -149,6 +183,29 @@ export default function ImportModal({ onClose, onImport }: ImportModalProps) {
                       className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                     />
                     <span className="text-sm text-slate-700">跳过错误行</span>
+                  </label>
+                </div>
+              )}
+
+              {duplicateRiskCount > 0 && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
+                  <Copy className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-orange-800">
+                      发现 {duplicateRiskCount} 条数据疑似与现有诉求重复
+                    </p>
+                    <p className="text-xs text-orange-600 mt-0.5">
+                      请仔细核对，避免重复登记
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={checkDuplicates}
+                      onChange={(e) => setCheckDuplicates(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">重复检测</span>
                   </label>
                 </div>
               )}
@@ -222,9 +279,11 @@ export default function ImportModal({ onClose, onImport }: ImportModalProps) {
 function TableRow({ row }: { row: ParsedImportRow }) {
   const baseClass = 'px-3 py-2';
   const errorClass = row.isValid ? '' : 'bg-red-50';
+  const duplicateClass = row.isValid && row.duplicateRisk?.hasRisk ? 'bg-orange-50' : '';
+  const rowClass = errorClass || duplicateClass;
 
   return (
-    <tr className={`${errorClass} hover:bg-slate-50`}>
+    <tr className={`${rowClass} hover:bg-slate-50`}>
       <td className={`${baseClass} text-slate-500 font-mono text-xs`}>{row.index}</td>
       <td className={`${baseClass} ${!row.data.name ? 'text-red-500' : 'text-slate-700'}`}>
         {row.data.name || <span className="text-red-400">-</span>}
@@ -241,16 +300,23 @@ function TableRow({ row }: { row: ParsedImportRow }) {
         {row.data.content || <span className="text-red-400">-</span>}
       </td>
       <td className={`${baseClass} text-center`}>
-        {row.isValid ? (
-          <div className="inline-flex items-center gap-1 text-green-600" title="合法">
-            <CheckCircle className="w-4 h-4" />
-          </div>
-        ) : (
+        {!row.isValid ? (
           <div
             className="inline-flex items-center gap-1 text-red-500 cursor-help"
             title={row.errors.map((e) => e.message).join('；')}
           >
             <AlertTriangle className="w-4 h-4" />
+          </div>
+        ) : row.duplicateRisk?.hasRisk ? (
+          <div
+            className="inline-flex items-center gap-1 text-orange-500 cursor-help"
+            title={`疑似重复：与 ${row.duplicateRisk.similarCount} 条现有诉求相似，最高相似度 ${Math.round(row.duplicateRisk.topSimilarity * 100)}%`}
+          >
+            <Copy className="w-4 h-4" />
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1 text-green-600" title="合法">
+            <CheckCircle className="w-4 h-4" />
           </div>
         )}
       </td>

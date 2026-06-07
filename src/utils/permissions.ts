@@ -19,6 +19,7 @@ export type PermissionAction =
   | 'update_handle_opinion'
   | 'escalate_complaint'
   | 'delete_complaint'
+  | 'merge_complaint'
   | 'manage_templates'
   | 'manage_time_limit_rules'
   | 'view_statistics'
@@ -30,7 +31,8 @@ export type PermissionAction =
   | 'manage_handlers'
   | 'view_all_complaints'
   | 'manage_visit_back'
-  | 'view_visit_back';
+  | 'view_visit_back'
+  | 'view_merged_complaints';
 
 const rolePermissions: Record<UserRole, PermissionAction[]> = {
   registrar: [
@@ -39,6 +41,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'print_receipt',
     'view_all_complaints',
     'view_visit_back',
+    'view_merged_complaints',
   ],
   handler: [
     'view_complaint',
@@ -48,6 +51,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'print_receipt',
     'manage_visit_back',
     'view_visit_back',
+    'view_merged_complaints',
   ],
   admin: [
     'view_complaint',
@@ -56,6 +60,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'update_handle_opinion',
     'escalate_complaint',
     'delete_complaint',
+    'merge_complaint',
     'manage_templates',
     'manage_time_limit_rules',
     'view_statistics',
@@ -68,6 +73,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'view_all_complaints',
     'manage_visit_back',
     'view_visit_back',
+    'view_merged_complaints',
   ],
 };
 
@@ -78,6 +84,7 @@ const permissionLabels: Record<PermissionAction, string> = {
   update_handle_opinion: '填写处理意见',
   escalate_complaint: '升级处理',
   delete_complaint: '删除记录',
+  merge_complaint: '合并诉求',
   manage_templates: '管理回复模板',
   manage_time_limit_rules: '管理时限规则',
   view_statistics: '查看数据统计',
@@ -90,12 +97,13 @@ const permissionLabels: Record<PermissionAction, string> = {
   view_all_complaints: '查看所有诉求',
   manage_visit_back: '登记回访',
   view_visit_back: '查看回访信息',
+  view_merged_complaints: '查看已合并诉求',
 };
 
 const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
   {
     group: '诉求管理',
-    permissions: ['view_complaint', 'create_complaint', 'delete_complaint', 'view_all_complaints'],
+    permissions: ['view_complaint', 'create_complaint', 'delete_complaint', 'merge_complaint', 'view_all_complaints', 'view_merged_complaints'],
   },
   {
     group: '处理操作',

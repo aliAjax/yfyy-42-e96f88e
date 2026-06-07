@@ -147,14 +147,15 @@ export function calculateSatisfactionStats(complaints: Complaint[]): Satisfactio
 }
 
 export function calculateDashboardStats(complaints: Complaint[], now?: Date): DashboardStats {
+  const activeComplaints = complaints.filter((c) => c.mergeStatus !== 'merged');
   return {
-    total: complaints.length,
-    statusCount: calculateStatusCount(complaints),
-    overdueCount: calculateOverdueStats(complaints, now),
-    typeRatio: calculateTypeRatio(complaints),
-    sourceDistribution: calculateSourceDistribution(complaints),
-    dailyTrend: calculateDailyTrend(complaints),
-    visitBackStatusCount: calculateVisitBackStatusCount(complaints),
-    satisfactionStats: calculateSatisfactionStats(complaints),
+    total: activeComplaints.length,
+    statusCount: calculateStatusCount(activeComplaints),
+    overdueCount: calculateOverdueStats(activeComplaints, now),
+    typeRatio: calculateTypeRatio(activeComplaints),
+    sourceDistribution: calculateSourceDistribution(activeComplaints),
+    dailyTrend: calculateDailyTrend(activeComplaints),
+    visitBackStatusCount: calculateVisitBackStatusCount(activeComplaints),
+    satisfactionStats: calculateSatisfactionStats(activeComplaints),
   };
 }
