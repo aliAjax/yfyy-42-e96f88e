@@ -153,7 +153,8 @@ npm run verify
 | `work_time_rule` | 工作时间规则 | `WorkTimeRule` | 首次访问加载默认配置 |
 | `operation_logs` | 操作日志 | `OperationLog[]` | 空数组 |
 | `handler_users` | 处理人员列表 | `HandlerUser[]` | 首次访问加载 mock 数据 |
-| `current_role` | 当前用户角色 | `'admin' \| 'operator' \| 'viewer'` | `'admin'` |
+| `current_handler_id` | 当前选中的处理员 ID | `string` | 首个处理人员 ID |
+| `current_role` | 当前用户角色 | `'registrar' \| 'handler' \| 'admin'` | `'admin'` |
 | `complaint_saved_views` | 保存的筛选视图 | `SavedView[]` | 空数组 |
 | `complaint_active_view_{role}` | 当前激活的视图 ID | `string` | 无 |
 | `theme` | 主题设置 | `'light' \| 'dark'` | 跟随系统 |
@@ -164,8 +165,9 @@ npm run verify
 2. **数据备份**：定期使用系统内的「备份恢复」功能导出备份文件（JSON 格式）
 3. **跨浏览器/设备**：不同浏览器、不同设备之间数据不互通，需通过备份文件迁移
 4. **容量限制**：localStorage 通常有约 5MB 容量限制，大量数据建议定期归档
-5. **首次访问**：首次打开系统会自动加载 mock 演示数据，可通过备份恢复功能清空
-6. **角色切换**：右上角可切换角色（管理员/操作员/查看员），不同角色权限不同
+5. **首次访问**：首次打开系统会自动加载 mock 演示数据，如需清空可通过浏览器控制台清除
+6. **角色切换**：右上角可切换角色（登记员/处理员/管理员），不同角色权限不同
+7. **处理员身份**：处理员角色下可切换当前登录身份，身份 ID 保存在 `current_handler_id` 中
 
 ### 重置数据
 
@@ -176,7 +178,7 @@ localStorage.clear();
 location.reload();
 ```
 
-或使用系统内的「备份恢复」→「恢复出厂数据」功能。
+> 系统暂无一键重置功能，需手动清除 localStorage。清空后刷新页面会重新加载 mock 演示数据。
 
 ## 目录结构
 
