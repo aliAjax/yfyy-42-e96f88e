@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Printer, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Printer, X, ZoomIn, ZoomOut, Star } from 'lucide-react';
 import type { Complaint } from '@/types/complaint';
-import { STATUS_OPTIONS } from '@/types/complaint';
+import { STATUS_OPTIONS, VISIT_BACK_STATUS_OPTIONS, SATISFACTION_OPTIONS } from '@/types/complaint';
 import { formatDateTime } from '@/utils/helpers';
 
 interface PrintReceiptProps {
@@ -14,6 +14,13 @@ export default function PrintReceipt({ complaint, onClose }: PrintReceiptProps) 
   const [isMobile, setIsMobile] = useState(false);
 
   const statusLabel = STATUS_OPTIONS.find((opt) => opt.value === complaint.status)?.label || complaint.status;
+  const visitBackStatusLabel = VISIT_BACK_STATUS_OPTIONS.find((opt) => opt.value === complaint.visitBackStatus)?.label || complaint.visitBackStatus;
+  const lastVisitBack = complaint.visitBackRecords && complaint.visitBackRecords.length > 0
+    ? complaint.visitBackRecords[complaint.visitBackRecords.length - 1]
+    : null;
+  const lastSatisfaction = lastVisitBack
+    ? SATISFACTION_OPTIONS.find((opt) => opt.value === lastVisitBack.satisfaction)
+    : null;
 
   useEffect(() => {
     const checkMobile = () => {
@@ -165,6 +172,76 @@ export default function PrintReceipt({ complaint, onClose }: PrintReceiptProps) 
                   {complaint.handleOpinion || '暂无'}
                 </p>
               </div>
+
+              {complaint.status === 'replied' && (
+                <div className="pt-2">
+                  <div className="text-sm font-medium text-slate-700 mb-2 pb-1 border-b border-slate-200">
+                    回访信息
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                      <span className="text-slate-500 text-xs">回访状态</span>
+                      <p className="text-slate-900 font-medium">{visitBackStatusLabel}</p>
+                    </div>
+                    {lastVisitBack && (
+                      <>
+                        <div className="space-y-1">
+                          <span className="text-slate-500 text-xs">回访时间</span>
+                          <p className="text-slate-900 font-medium">{lastVisitBack.visitBackTime}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-slate-500 text-xs">群众满意度</span>
+                          <p className="text-slate-900 font-medium flex items-center gap-1">
+                            {lastSatisfaction && (
+                              <span className="inline-flex gap-0.5">
+                                {Array.from({ length: lastSatisfaction.score }).map((_, i) => (
+                                  <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                ))}
+                              </span>
+                            )}
+                            {lastSatisfaction?.label}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-slate-500 text-xs">回访次数</span>
+                          <p className="text-slate-900 font-medium">{complaint.visitBackRecords?.length || 0} 次</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {lastVisitBack?.visitBackResult && (
+                    <div className="mt-3">
+                      <span className="text-slate-500 text-xs">回访结果</span>
+                      <p className="text-sm text-slate-700 leading-relaxed mt-1 whitespace-pre-wrap">
+                        {lastVisitBack.visitBackResult}
+                      </p>
+                    </div>
+                  )}
+                  {lastVisitBack?.unsatisfiedReason && (
+                    <div className="mt-3">
+                      <span className="text-slate-500 text-xs">未满意原因</span>
+                      <p className="text-sm text-slate-700 leading-relaxed mt-1 whitespace-pre-wrap">
+                        {lastVisitBack.unsatisfiedReason}
+                      </p>
+                    </div>
+                  )}
+                  {lastVisitBack?.secondaryHandleNote && (
+                    <div className="mt-3">
+                      <span className="text-slate-500 text-xs">二次处理说明</span>
+                      <p className="text-sm text-slate-700 leading-relaxed mt-1 whitespace-pre-wrap">
+                        {lastVisitBack.secondaryHandleNote}
+                      </p>
+                    </div>
+                  )}
+                  {lastVisitBack?.isReopened && (
+                    <div className="mt-3">
+                      <span className="inline-block px-2 py-1 bg-orange-50 text-orange-700 text-xs font-medium rounded">
+                        已重新进入处理流程
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="pt-8 mt-8 border-t border-dashed border-slate-300">
                 <div className="grid grid-cols-2 gap-4 text-xs text-slate-500">

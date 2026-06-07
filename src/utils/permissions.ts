@@ -28,7 +28,9 @@ export type PermissionAction =
   | 'backup_restore'
   | 'assign_complaint'
   | 'manage_handlers'
-  | 'view_all_complaints';
+  | 'view_all_complaints'
+  | 'manage_visit_back'
+  | 'view_visit_back';
 
 const rolePermissions: Record<UserRole, PermissionAction[]> = {
   registrar: [
@@ -36,6 +38,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'create_complaint',
     'print_receipt',
     'view_all_complaints',
+    'view_visit_back',
   ],
   handler: [
     'view_complaint',
@@ -43,6 +46,8 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'update_handle_opinion',
     'escalate_complaint',
     'print_receipt',
+    'manage_visit_back',
+    'view_visit_back',
   ],
   admin: [
     'view_complaint',
@@ -61,6 +66,8 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'assign_complaint',
     'manage_handlers',
     'view_all_complaints',
+    'manage_visit_back',
+    'view_visit_back',
   ],
 };
 
@@ -81,6 +88,8 @@ const permissionLabels: Record<PermissionAction, string> = {
   assign_complaint: '分派诉求',
   manage_handlers: '管理处理员',
   view_all_complaints: '查看所有诉求',
+  manage_visit_back: '登记回访',
+  view_visit_back: '查看回访信息',
 };
 
 const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
@@ -91,6 +100,10 @@ const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
   {
     group: '处理操作',
     permissions: ['update_status', 'update_handle_opinion', 'escalate_complaint', 'assign_complaint'],
+  },
+  {
+    group: '回访管理',
+    permissions: ['manage_visit_back', 'view_visit_back'],
   },
   {
     group: '系统管理',

@@ -1,4 +1,4 @@
-import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
+import { COMPLAINT_TYPES, SOURCE_CHANNELS, SATISFACTION_OPTIONS } from '@/types/complaint';
 import type {
   Complaint,
   DashboardStats,
@@ -7,6 +7,9 @@ import type {
   TypeRatioItem,
   SourceDistributionItem,
   DailyTrendItem,
+  VisitBackStatusCount,
+  SatisfactionStats,
+  SatisfactionLevel,
 } from '@/types/complaint';
 import { getLast7Days } from './helpers';
 import { calculateOverdueCount } from './overdue';
@@ -63,6 +66,76 @@ export function calculateOverdueStats(complaints: Complaint[], now?: Date): Over
   return calculateOverdueCount(complaints, now);
 }
 
+export function calculateVisitBackStatusCount(complaints: Complaint[]): VisitBackStatusCount {
+  const repliedComplaints = complaints.filter((c) => c.status === 'replied');
+  return {
+    pending: repliedComplaints.filter((c) => c.visitBackStatus === 'pending').length,
+    completed: repliedComplaints.filter((c) => c.visitBackStatus === 'completed').length,
+    unsatisfied: repliedComplaints.filter((c) => c.visitBackStatus === 'unsatisfied').length,
+  };
+}
+
+export function calculateSatisfactionStats(complaints: Complaint[]): SatisfactionStats {
+  const repliedComplaints = complaints.filter((c) => c.status === 'replied');
+  const visitedComplaints = repliedComplaints.filter(
+    (c) => c.visitBackStatus === 'completed' || c.visitBackStatus === 'unsatisfied'
+  );
+
+  let totalScore = 0;
+  let verySatisfiedCount = 0;
+  let satisfiedCount = 0;
+  let neutralCount = 0;
+  let dissatisfiedCount = 0;
+  let veryDissatisfiedCount = 0;
+
+  visitedComplaints.forEach((c) => {
+    if (c.visitBackRecords && c.visitBackRecords.length > 0) {
+      const lastRecord = c.visitBackRecords[c.visitBackRecords.length - 1];
+      const satisfaction = lastRecord.satisfaction;
+      const score = SATISFACTION_OPTIONS.find((opt) => opt.value === satisfaction)?.score || 0;
+      totalScore += score;
+
+      switch (satisfaction) {
+        case 'very_satisfied':
+          verySatisfiedCount++;
+          break;
+        case 'satisfied':
+          satisfiedCount++;
+          break;
+        case 'neutral':
+          neutralCount++;
+          break;
+        case 'dissatisfied':
+          dissatisfiedCount++;
+          break;
+        case 'very_dissatisfied':
+          veryDissatisfiedCount++;
+          break;
+      }
+    }
+  });
+
+  const visitedCount = visitedComplaints.length;
+  const totalReplied = repliedComplaints.length;
+  const visitBackRate = totalReplied > 0 ? (visitedCount / totalReplied) * 100 : 0;
+  const averageScore = visitedCount > 0 ? totalScore / visitedCount : 0;
+  const satisfiedOrAbove = verySatisfiedCount + satisfiedCount;
+  const satisfactionRate = visitedCount > 0 ? (satisfiedOrAbove / visitedCount) * 100 : 0;
+
+  return {
+    totalReplied,
+    visitedCount,
+    visitBackRate,
+    averageScore,
+    verySatisfiedCount,
+    satisfiedCount,
+    neutralCount,
+    dissatisfiedCount,
+    veryDissatisfiedCount,
+    satisfactionRate,
+  };
+}
+
 export function calculateDashboardStats(complaints: Complaint[], now?: Date): DashboardStats {
   return {
     total: complaints.length,
@@ -71,5 +144,7 @@ export function calculateDashboardStats(complaints: Complaint[], now?: Date): Da
     typeRatio: calculateTypeRatio(complaints),
     sourceDistribution: calculateSourceDistribution(complaints),
     dailyTrend: calculateDailyTrend(complaints),
+    visitBackStatusCount: calculateVisitBackStatusCount(complaints),
+    satisfactionStats: calculateSatisfactionStats(complaints),
   };
 }

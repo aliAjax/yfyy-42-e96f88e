@@ -1,4 +1,4 @@
-import { STATUS_OPTIONS } from '@/types/complaint';
+import { STATUS_OPTIONS, VISIT_BACK_STATUS_OPTIONS, SATISFACTION_OPTIONS } from '@/types/complaint';
 import type { Complaint } from '@/types/complaint';
 import { calculateOverdueInfo, formatHours } from './overdue';
 
@@ -17,6 +17,14 @@ const EXPORT_HEADERS = [
   '超期状态',
   '处理意见',
   '回复时间',
+  '回访状态',
+  '回访次数',
+  '最新回访时间',
+  '群众满意度',
+  '回访结果',
+  '未满意原因',
+  '二次处理说明',
+  '是否重新处理',
 ] as const;
 
 function escapeCSVValue(value: string): string {
@@ -31,6 +39,16 @@ function escapeCSVValue(value: string): string {
 function getStatusLabel(status: string): string {
   const option = STATUS_OPTIONS.find((opt) => opt.value === status);
   return option ? option.label : status;
+}
+
+function getVisitBackStatusLabel(status: string): string {
+  const option = VISIT_BACK_STATUS_OPTIONS.find((opt) => opt.value === status);
+  return option ? option.label : status;
+}
+
+function getSatisfactionLabel(satisfaction: string): string {
+  const option = SATISFACTION_OPTIONS.find((opt) => opt.value === satisfaction);
+  return option ? option.label : satisfaction;
 }
 
 function formatExportRow(complaint: Complaint): string[] {
@@ -52,6 +70,12 @@ function formatExportRow(complaint: Complaint): string[] {
     }
   }
 
+  const lastVisitBack = complaint.visitBackRecords && complaint.visitBackRecords.length > 0
+    ? complaint.visitBackRecords[complaint.visitBackRecords.length - 1]
+    : null;
+
+  const visitBackCount = complaint.visitBackRecords?.length || 0;
+
   return [
     complaint.id,
     complaint.name,
@@ -67,6 +91,14 @@ function formatExportRow(complaint: Complaint): string[] {
     overdueStatus,
     complaint.handleOpinion || '',
     complaint.replyTime || '',
+    complaint.status === 'replied' ? getVisitBackStatusLabel(complaint.visitBackStatus) : '',
+    complaint.status === 'replied' ? String(visitBackCount) : '',
+    lastVisitBack?.visitBackTime || '',
+    lastVisitBack ? getSatisfactionLabel(lastVisitBack.satisfaction) : '',
+    lastVisitBack?.visitBackResult || '',
+    lastVisitBack?.unsatisfiedReason || '',
+    lastVisitBack?.secondaryHandleNote || '',
+    lastVisitBack?.isReopened ? '是' : '',
   ];
 }
 

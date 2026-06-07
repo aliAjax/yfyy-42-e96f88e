@@ -1,4 +1,4 @@
-import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord, AssignmentRecord } from '@/types/complaint';
+import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord, AssignmentRecord, VisitBackStatus, VisitBackRecord } from '@/types/complaint';
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -56,12 +56,14 @@ export function getLast7Days(): { date: string; dateLabel: string }[] {
   return days;
 }
 
-type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | 'assignmentRecords'> & {
+type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | 'assignmentRecords' | 'visitBackStatus' | 'visitBackRecords'> & {
   handleRecords?: HandleRecord[];
   escalationRecords?: EscalationRecord[];
   assigneeId?: string;
   assigneeName?: string;
   assignmentRecords?: AssignmentRecord[];
+  visitBackStatus?: VisitBackStatus;
+  visitBackRecords?: VisitBackRecord[];
 };
 
 function getInitialTime(c: LegacyComplaint): string {
@@ -224,6 +226,12 @@ function ensureStatusProgression(records: HandleRecord[], c: LegacyComplaint): H
   return sortRecordsByTime(completedRecords);
 }
 
+function getDefaultVisitBackStatus(c: LegacyComplaint): VisitBackStatus {
+  if (c.visitBackStatus) return c.visitBackStatus;
+  if (c.status === 'replied') return 'pending';
+  return 'pending';
+}
+
 export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[] {
   return complaints.map((c) => {
     let handleRecords: HandleRecord[];
@@ -239,6 +247,11 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
     const assignmentRecords: AssignmentRecord[] =
       c.assignmentRecords && Array.isArray(c.assignmentRecords) ? c.assignmentRecords : [];
 
+    const visitBackRecords: VisitBackRecord[] =
+      c.visitBackRecords && Array.isArray(c.visitBackRecords) ? c.visitBackRecords : [];
+
+    const visitBackStatus = getDefaultVisitBackStatus(c);
+
     return {
       ...c,
       handleRecords,
@@ -246,6 +259,8 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
       assignmentRecords,
       assigneeId: c.assigneeId,
       assigneeName: c.assigneeName,
+      visitBackStatus,
+      visitBackRecords,
     } as Complaint;
   });
 }

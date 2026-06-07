@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock, Phone, ThumbsUp, ThumbsDown, RotateCcw, Star } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
-import type { Complaint, HandleFormData, AssignmentFormData, HandlerUser } from '@/types/complaint';
-import { STATUS_OPTIONS, COMPLAINT_TYPES } from '@/types/complaint';
+import type { Complaint, HandleFormData, AssignmentFormData, HandlerUser, VisitBackFormData, VisitBackRecord } from '@/types/complaint';
+import { STATUS_OPTIONS, COMPLAINT_TYPES, VISIT_BACK_STATUS_OPTIONS, SATISFACTION_OPTIONS, UNSATISFIED_REASONS } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput, formatDateTime } from '@/utils/helpers';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 import { getTemplatesByType, getTemplates } from '@/utils/replyTemplate';
@@ -19,6 +19,7 @@ interface DetailModalProps {
   onEscalate: (id: string, reason: string) => void;
   onDelete?: (id: string) => void;
   onAssign?: (id: string, data: AssignmentFormData) => void;
+  onVisitBack?: (id: string, data: VisitBackFormData) => void;
   now?: Date;
   currentRole: UserRole;
   timeLimitRulesVersion?: number;
@@ -26,7 +27,7 @@ interface DetailModalProps {
   currentHandlerId?: string;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, onVisitBack, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId }: DetailModalProps) {
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
   const canUpdateOpinion = hasPermission(currentRole, 'update_handle_opinion');
   const canHandle = canUpdateStatus || canUpdateOpinion;
@@ -35,11 +36,14 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const canPrint = hasPermission(currentRole, 'print_receipt');
   const canAssign = hasPermission(currentRole, 'assign_complaint');
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
+  const canManageVisitBack = hasPermission(currentRole, 'manage_visit_back');
+  const canViewVisitBack = hasPermission(currentRole, 'view_visit_back');
 
   const handleDisabledReason = getDisabledReason(currentRole, 'update_status');
   const escalateDisabledReason = getDisabledReason(currentRole, 'escalate_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
   const printDisabledReason = getDisabledReason(currentRole, 'print_receipt');
+  const visitBackDisabledReason = getDisabledReason(currentRole, 'manage_visit_back');
 
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({
@@ -56,6 +60,15 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
     assigneeId: '',
     assigneeName: '',
     remark: '',
+  });
+  const [showVisitBackModal, setShowVisitBackModal] = useState(false);
+  const [visitBackData, setVisitBackData] = useState<VisitBackFormData>({
+    visitBackTime: '',
+    visitBackResult: '',
+    satisfaction: 'satisfied',
+    unsatisfiedReason: '',
+    secondaryHandleNote: '',
+    reopenCase: false,
   });
   const templatePanelRef = useRef<HTMLDivElement>(null);
 
@@ -234,67 +247,80 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 基本信息
               </h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-slate-500">姓名：</span>
-                  <span className="text-slate-900 font-medium">{complaint.name}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">联系方式：</span>
-                  <span className="text-slate-900 font-medium">{complaint.phone}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">诉求类型：</span>
-                  <span className="text-blue-600 font-medium">{complaint.type}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">来源渠道：</span>
-                  <span className="text-slate-900 font-medium">{complaint.source}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">受理时间：</span>
-                  <span className="text-slate-900 font-medium">{complaint.receiveTime}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">处理时限：</span>
-                  <span className="text-slate-900 font-medium">{formatHours(overdueInfo?.timeLimitHours || 0)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">当前承办人：</span>
-                  {complaint.assigneeName ? (
-                    <span className="text-green-600 font-medium flex items-center gap-1">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      {complaint.assigneeName}
-                    </span>
-                  ) : (
-                    <span className="text-orange-500 font-medium flex items-center gap-1">
-                      <UserPlus className="w-3.5 h-3.5" />
-                      待分派
-                    </span>
-                  )}
-                </div>
-                {complaint.status !== 'replied' && (
-                  <>
+                  <div>
+                    <span className="text-slate-500">姓名：</span>
+                    <span className="text-slate-900 font-medium">{complaint.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">联系方式：</span>
+                    <span className="text-slate-900 font-medium">{complaint.phone}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">诉求类型：</span>
+                    <span className="text-blue-600 font-medium">{complaint.type}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">来源渠道：</span>
+                    <span className="text-slate-900 font-medium">{complaint.source}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">受理时间：</span>
+                    <span className="text-slate-900 font-medium">{complaint.receiveTime}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">处理时限：</span>
+                    <span className="text-slate-900 font-medium">{formatHours(overdueInfo?.timeLimitHours || 0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">当前承办人：</span>
+                    {complaint.assigneeName ? (
+                      <span className="text-green-600 font-medium flex items-center gap-1">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        {complaint.assigneeName}
+                      </span>
+                    ) : (
+                      <span className="text-orange-500 font-medium flex items-center gap-1">
+                        <UserPlus className="w-3.5 h-3.5" />
+                        待分派
+                      </span>
+                    )}
+                  </div>
+                  {canViewVisitBack && complaint.status === 'replied' && (
                     <div>
-                      <span className="text-slate-500">截止时间：</span>
-                      <span className={`font-medium ${
-                        overdueInfo?.isOverdue ? 'text-red-600' :
-                        overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
-                      }`}>{overdueInfo?.deadline}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">剩余时间：</span>
-                      <span className={`font-medium ${
-                        overdueInfo?.isOverdue ? 'text-red-600' :
-                        overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
+                      <span className="text-slate-500">回访状态：</span>
+                      <span className={`font-medium flex items-center gap-1 ${
+                        complaint.visitBackStatus === 'pending' ? 'text-orange-600' :
+                        complaint.visitBackStatus === 'completed' ? 'text-green-600' :
+                        'text-red-600'
                       }`}>
-                        {overdueInfo?.isOverdue
-                          ? `超期 ${formatHours(overdueInfo.overdueHours)}`
-                          : formatHours(overdueInfo?.remainingHours || 0)}
+                        <Phone className="w-3.5 h-3.5" />
+                        {VISIT_BACK_STATUS_OPTIONS.find((opt) => opt.value === complaint.visitBackStatus)?.label}
                       </span>
                     </div>
-                  </>
-                )}
-              </div>
+                  )}
+                  {complaint.status !== 'replied' && (
+                    <>
+                      <div>
+                        <span className="text-slate-500">截止时间：</span>
+                        <span className={`font-medium ${
+                          overdueInfo?.isOverdue ? 'text-red-600' :
+                          overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
+                        }`}>{overdueInfo?.deadline}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">剩余时间：</span>
+                        <span className={`font-medium ${
+                          overdueInfo?.isOverdue ? 'text-red-600' :
+                          overdueInfo?.isWarning ? 'text-amber-600' : 'text-slate-900'
+                        }`}>
+                          {overdueInfo?.isOverdue
+                            ? `超期 ${formatHours(overdueInfo.overdueHours)}`
+                            : formatHours(overdueInfo?.remainingHours || 0)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
             </div>
 
             <div className="space-y-2">
@@ -376,6 +402,115 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {canViewVisitBack && complaint.visitBackRecords && complaint.visitBackRecords.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-amber-600" />
+                  回访记录
+                </h4>
+                <div className="space-y-2">
+                  {complaint.visitBackRecords.map((record, index) => {
+                    const satisfactionOpt = SATISFACTION_OPTIONS.find(
+                      (opt) => opt.value === record.satisfaction
+                    );
+                    return (
+                      <div
+                        key={record.id}
+                        className={`border rounded-lg p-3 ${
+                          record.isReopened
+                            ? 'bg-red-50 border-red-200'
+                            : 'bg-amber-50 border-amber-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-amber-700">
+                            第 {index + 1} 次回访
+                          </span>
+                          <span className="text-xs text-amber-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDateTime(new Date(record.operatedAt))}
+                          </span>
+                        </div>
+                        <div className="text-sm text-slate-700 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500 text-xs">满意度：</span>
+                            <span className={`font-medium ${
+                              satisfactionOpt?.color === 'green' ? 'text-green-600' :
+                              satisfactionOpt?.color === 'blue' ? 'text-blue-600' :
+                              satisfactionOpt?.color === 'yellow' ? 'text-amber-600' :
+                              satisfactionOpt?.color === 'orange' ? 'text-orange-600' :
+                              'text-red-600'
+                            }`}>
+                              {satisfactionOpt?.label}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`w-3 h-3 ${
+                                    i < (satisfactionOpt?.score || 0)
+                                      ? 'text-amber-400 fill-amber-400'
+                                      : 'text-slate-300'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 text-xs">回访结果：</span>
+                            <span className="text-slate-700">{record.visitBackResult}</span>
+                          </div>
+                          {record.unsatisfiedReason && (
+                            <div>
+                              <span className="text-slate-500 text-xs">未满意原因：</span>
+                              <span className="text-red-600">{record.unsatisfiedReason}</span>
+                            </div>
+                          )}
+                          {record.secondaryHandleNote && (
+                            <div>
+                              <span className="text-slate-500 text-xs">二次处理说明：</span>
+                              <span className="text-slate-700">{record.secondaryHandleNote}</span>
+                            </div>
+                          )}
+                          {record.isReopened && (
+                            <div className="pt-1 mt-1 border-t border-red-200 flex items-center gap-1">
+                              <RotateCcw className="w-3 h-3 text-red-500" />
+                              <span className="text-xs text-red-600 font-medium">已重新进入处理</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {complaint.status === 'replied' && canManageVisitBack && canHandleAssigned && (
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVisitBackData({
+                      visitBackTime: getCurrentDateTime(),
+                      visitBackResult: '',
+                      satisfaction: 'satisfied',
+                      unsatisfiedReason: '',
+                      secondaryHandleNote: '',
+                      reopenCase: false,
+                    });
+                    setShowVisitBackModal(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors flex items-center justify-center gap-2 text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200"
+                >
+                  <Phone className="w-4 h-4" />
+                  {complaint.visitBackRecords && complaint.visitBackRecords.length > 0
+                    ? '再次回访'
+                    : '登记回访'}
+                </button>
               </div>
             )}
 
@@ -805,6 +940,195 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 >
                   <UserCheck className="w-4 h-4" />
                   确认分派
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVisitBackModal && complaint && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowVisitBackModal(false)}
+          ></div>
+
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <Phone className="w-5 h-5 text-amber-600" />
+                登记回访
+              </h3>
+              <button
+                onClick={() => setShowVisitBackModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-700">
+                  请填写回访结果和群众满意度。如群众不满意，可选择重新进入处理流程。
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  回访时间 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={visitBackData.visitBackTime ? formatDateInput(new Date(visitBackData.visitBackTime.replace(' ', 'T'))) : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setVisitBackData((prev) => ({
+                      ...prev,
+                      visitBackTime: val ? val.replace('T', ' ') : '',
+                    }));
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  满意度 <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {SATISFACTION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setVisitBackData((prev) => ({ ...prev, satisfaction: opt.value }))}
+                      className={`flex flex-col items-center gap-1 py-2 px-1 text-xs font-medium rounded-lg border transition-all ${
+                        visitBackData.satisfaction === opt.value
+                          ? opt.color === 'green'
+                            ? 'bg-green-50 border-green-400 text-green-700'
+                            : opt.color === 'blue'
+                            ? 'bg-blue-50 border-blue-400 text-blue-700'
+                            : opt.color === 'yellow'
+                            ? 'bg-amber-50 border-amber-400 text-amber-700'
+                            : opt.color === 'orange'
+                            ? 'bg-orange-50 border-orange-400 text-orange-700'
+                            : 'bg-red-50 border-red-400 text-red-700'
+                          : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: opt.score }).map((_, i) => (
+                          <Star key={i} className="w-3 h-3 fill-current" />
+                        ))}
+                      </div>
+                      <span>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  回访结果 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={visitBackData.visitBackResult}
+                  onChange={(e) => setVisitBackData((prev) => ({ ...prev, visitBackResult: e.target.value }))}
+                  placeholder="请填写回访结果和沟通情况..."
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"
+                />
+              </div>
+
+              {(visitBackData.satisfaction === 'dissatisfied' || visitBackData.satisfaction === 'very_dissatisfied') && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      未满意原因
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {UNSATISFIED_REASONS.map((reason) => (
+                        <button
+                          key={reason}
+                          type="button"
+                          onClick={() => setVisitBackData((prev) => ({
+                            ...prev,
+                            unsatisfiedReason: prev.unsatisfiedReason === reason ? '' : reason,
+                          }))}
+                          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                            visitBackData.unsatisfiedReason === reason
+                              ? 'bg-red-100 border-red-300 text-red-700'
+                              : 'bg-white border-slate-300 text-slate-600 hover:border-red-300'
+                          }`}
+                        >
+                          {reason}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={visitBackData.unsatisfiedReason || ''}
+                      onChange={(e) => setVisitBackData((prev) => ({ ...prev, unsatisfiedReason: e.target.value }))}
+                      placeholder="如选择其他，请详细说明未满意原因..."
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      二次处理说明
+                    </label>
+                    <textarea
+                      value={visitBackData.secondaryHandleNote || ''}
+                      onChange={(e) => setVisitBackData((prev) => ({ ...prev, secondaryHandleNote: e.target.value }))}
+                      placeholder="请填写二次处理计划或说明..."
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="reopenCase"
+                      checked={visitBackData.reopenCase}
+                      onChange={(e) => setVisitBackData((prev) => ({ ...prev, reopenCase: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 text-red-600 border-red-300 rounded focus:ring-red-500"
+                    />
+                    <div>
+                      <label htmlFor="reopenCase" className="text-sm font-medium text-red-700 cursor-pointer">
+                        重新进入处理
+                      </label>
+                      <p className="text-xs text-red-600 mt-0.5">
+                        勾选后该诉求将从"已回复"重新转为"处理中"状态，保留完整时间线
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowVisitBackModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (visitBackData.visitBackTime && visitBackData.visitBackResult.trim() && onVisitBack) {
+                      onVisitBack(complaint.id, { ...visitBackData });
+                      setShowVisitBackModal(false);
+                    }
+                  }}
+                  disabled={!visitBackData.visitBackTime || !visitBackData.visitBackResult.trim()}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  确认提交
                 </button>
               </div>
             </div>

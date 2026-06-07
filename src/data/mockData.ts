@@ -1,6 +1,6 @@
-import type { Complaint } from '@/types/complaint';
+import type { Complaint, VisitBackStatus, VisitBackRecord } from '@/types/complaint';
 
-export const mockComplaints: Complaint[] = [
+const rawComplaints: Array<Omit<Complaint, 'visitBackStatus' | 'visitBackRecords'> & { visitBackStatus?: VisitBackStatus; visitBackRecords?: VisitBackRecord[] }> = [
   {
     id: '1',
     name: '张建国',
@@ -139,6 +139,19 @@ export const mockComplaints: Complaint[] = [
         assignedAt: '2026-06-01T17:00:00.000Z',
       },
     ],
+    visitBackStatus: 'completed',
+    visitBackRecords: [
+      {
+        id: 'vb3-1',
+        visitBackTime: '2026-06-03 14:00',
+        visitBackResult: '电话回访居民，居民表示水管已修好，对处理速度和服务态度都很满意。',
+        satisfaction: 'very_satisfied',
+        isReopened: false,
+        operatedAt: '2026-06-03T14:00:00.000Z',
+        operatorId: 'h3',
+        operatorName: '张专员',
+      },
+    ],
   },
   {
     id: '4',
@@ -171,6 +184,8 @@ export const mockComplaints: Complaint[] = [
     ],
     escalationRecords: [],
     assignmentRecords: [],
+    visitBackStatus: 'pending',
+    visitBackRecords: [],
   },
   {
     id: '5',
@@ -311,5 +326,26 @@ export const mockComplaints: Complaint[] = [
     ],
     escalationRecords: [],
     assignmentRecords: [],
+    visitBackStatus: 'unsatisfied',
+    visitBackRecords: [
+      {
+        id: 'vb8-1',
+        visitBackTime: '2026-06-03 10:00',
+        visitBackResult: '电话回访老人，老人表示志愿者代购的物品有几样买错了，希望重新购买。',
+        satisfaction: 'dissatisfied',
+        unsatisfiedReason: '处理结果不符合预期',
+        secondaryHandleNote: '已联系志愿者重新核对购物清单，明日重新代购。',
+        isReopened: true,
+        operatedAt: '2026-06-03T10:00:00.000Z',
+        operatorId: 'h3',
+        operatorName: '张专员',
+      },
+    ],
   },
 ];
+
+export const mockComplaints: Complaint[] = rawComplaints.map((c) => ({
+  ...c,
+  visitBackStatus: c.visitBackStatus || 'pending',
+  visitBackRecords: c.visitBackRecords || [],
+})) as Complaint[];

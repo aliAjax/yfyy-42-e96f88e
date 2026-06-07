@@ -1,5 +1,9 @@
 export type ComplaintStatus = 'pending' | 'processing' | 'replied';
 
+export type VisitBackStatus = 'pending' | 'completed' | 'unsatisfied';
+
+export type SatisfactionLevel = 'very_satisfied' | 'satisfied' | 'neutral' | 'dissatisfied' | 'very_dissatisfied';
+
 export type OverdueLevel = 'normal' | 'warning' | 'overdue';
 
 export const COMPLAINT_TYPES = ['投诉', '建议', '咨询', '求助', '其他'] as const;
@@ -9,6 +13,29 @@ export const STATUS_OPTIONS: { value: ComplaintStatus; label: string; color: str
   { value: 'processing', label: '处理中', color: 'blue' },
   { value: 'replied', label: '已回复', color: 'green' },
 ];
+
+export const VISIT_BACK_STATUS_OPTIONS: { value: VisitBackStatus; label: string; color: string }[] = [
+  { value: 'pending', label: '待回访', color: 'orange' },
+  { value: 'completed', label: '已回访', color: 'green' },
+  { value: 'unsatisfied', label: '未满意', color: 'red' },
+];
+
+export const SATISFACTION_OPTIONS: { value: SatisfactionLevel; label: string; score: number; color: string }[] = [
+  { value: 'very_satisfied', label: '非常满意', score: 5, color: 'green' },
+  { value: 'satisfied', label: '满意', score: 4, color: 'blue' },
+  { value: 'neutral', label: '一般', score: 3, color: 'yellow' },
+  { value: 'dissatisfied', label: '不满意', score: 2, color: 'orange' },
+  { value: 'very_dissatisfied', label: '非常不满意', score: 1, color: 'red' },
+];
+
+export const UNSATISFIED_REASONS = [
+  '处理结果不符合预期',
+  '处理时效过长',
+  '服务态度不佳',
+  '问题未得到根本解决',
+  '沟通不及时',
+  '其他原因',
+] as const;
 
 export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -70,6 +97,19 @@ export interface HandleRecord {
   operatorName?: string;
 }
 
+export interface VisitBackRecord {
+  id: string;
+  visitBackTime: string;
+  visitBackResult: string;
+  satisfaction: SatisfactionLevel;
+  unsatisfiedReason?: string;
+  secondaryHandleNote?: string;
+  isReopened: boolean;
+  operatedAt: string;
+  operatorId?: string;
+  operatorName?: string;
+}
+
 export interface AssignmentRecord {
   id: string;
   assigneeId: string;
@@ -106,9 +146,11 @@ export interface Complaint {
   assigneeId?: string;
   assigneeName?: string;
   assignmentRecords: AssignmentRecord[];
+  visitBackStatus: VisitBackStatus;
+  visitBackRecords: VisitBackRecord[];
 }
 
-export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords' | 'escalationRecords' | 'assigneeId' | 'assigneeName' | 'assignmentRecords'>;
+export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords' | 'escalationRecords' | 'assigneeId' | 'assigneeName' | 'assignmentRecords' | 'visitBackStatus' | 'visitBackRecords'>;
 
 export type AssignmentFormData = {
   assigneeId: string;
@@ -120,6 +162,15 @@ export type HandleFormData = {
   status: ComplaintStatus;
   handleOpinion: string;
   replyTime: string;
+};
+
+export type VisitBackFormData = {
+  visitBackTime: string;
+  visitBackResult: string;
+  satisfaction: SatisfactionLevel;
+  unsatisfiedReason?: string;
+  secondaryHandleNote?: string;
+  reopenCase: boolean;
 };
 
 export interface StatusCount {
@@ -152,6 +203,25 @@ export interface DailyTrendItem {
   count: number;
 }
 
+export interface VisitBackStatusCount {
+  pending: number;
+  completed: number;
+  unsatisfied: number;
+}
+
+export interface SatisfactionStats {
+  totalReplied: number;
+  visitedCount: number;
+  visitBackRate: number;
+  averageScore: number;
+  verySatisfiedCount: number;
+  satisfiedCount: number;
+  neutralCount: number;
+  dissatisfiedCount: number;
+  veryDissatisfiedCount: number;
+  satisfactionRate: number;
+}
+
 export interface DashboardStats {
   total: number;
   statusCount: StatusCount;
@@ -159,6 +229,8 @@ export interface DashboardStats {
   typeRatio: TypeRatioItem[];
   sourceDistribution: SourceDistributionItem[];
   dailyTrend: DailyTrendItem[];
+  visitBackStatusCount: VisitBackStatusCount;
+  satisfactionStats: SatisfactionStats;
 }
 
 export interface ImportRowError {
@@ -184,6 +256,7 @@ export interface ViewFilter {
   types: string[];
   sources: string[];
   statuses: ComplaintStatus[];
+  visitBackStatuses: VisitBackStatus[];
   escalated: boolean | null;
   overdue: boolean | null;
   receiveTimeStart: string | null;
@@ -204,6 +277,7 @@ export const DEFAULT_FILTER: ViewFilter = {
   types: [],
   sources: [],
   statuses: [],
+  visitBackStatuses: [],
   escalated: null,
   overdue: null,
   receiveTimeStart: null,

@@ -119,6 +119,38 @@ function getDefaultViews(role: UserRole): SavedView[] {
       role,
     },
     {
+      id: 'default_replied',
+      name: '已回复',
+      filter: { ...DEFAULT_FILTER, statuses: ['replied'] },
+      createdAt: now,
+      updatedAt: now,
+      role,
+    },
+    {
+      id: 'default_pending_visitback',
+      name: '待回访',
+      filter: { ...DEFAULT_FILTER, statuses: ['replied'], visitBackStatuses: ['pending'] },
+      createdAt: now,
+      updatedAt: now,
+      role,
+    },
+    {
+      id: 'default_visited',
+      name: '已回访',
+      filter: { ...DEFAULT_FILTER, statuses: ['replied'], visitBackStatuses: ['completed'] },
+      createdAt: now,
+      updatedAt: now,
+      role,
+    },
+    {
+      id: 'default_unsatisfied',
+      name: '未满意',
+      filter: { ...DEFAULT_FILTER, statuses: ['replied'], visitBackStatuses: ['unsatisfied'] },
+      createdAt: now,
+      updatedAt: now,
+      role,
+    },
+    {
       id: 'default_overdue',
       name: '已超期',
       filter: { ...DEFAULT_FILTER, overdue: true },
@@ -151,6 +183,12 @@ export function applyFilter(
     if (filter.types.length > 0 && !filter.types.includes(c.type)) return false;
     if (filter.sources.length > 0 && !filter.sources.includes(c.source)) return false;
     if (filter.statuses.length > 0 && !filter.statuses.includes(c.status)) return false;
+    if (filter.visitBackStatuses.length > 0 && c.status === 'replied') {
+      if (!filter.visitBackStatuses.includes(c.visitBackStatus)) return false;
+    }
+    if (filter.visitBackStatuses.length > 0 && c.status !== 'replied') {
+      return false;
+    }
     if (filter.escalated !== null) {
       const hasEscalation = c.escalationRecords && c.escalationRecords.length > 0;
       if (filter.escalated && !hasEscalation) return false;
@@ -186,6 +224,7 @@ export function isFilterEmpty(filter: ViewFilter): boolean {
     filter.types.length === 0 &&
     filter.sources.length === 0 &&
     filter.statuses.length === 0 &&
+    filter.visitBackStatuses.length === 0 &&
     filter.escalated === null &&
     filter.overdue === null &&
     filter.receiveTimeStart === null &&

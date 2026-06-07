@@ -1,6 +1,7 @@
-import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock, UserCheck } from 'lucide-react';
+import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock, UserCheck, PhoneCall } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import type { Complaint } from '@/types/complaint';
+import { VISIT_BACK_STATUS_OPTIONS, SATISFACTION_OPTIONS } from '@/types/complaint';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason } from '@/utils/permissions';
@@ -174,6 +175,46 @@ export default function ComplaintCard({
           </div>
         )}
       </div>
+
+      {complaint.status === 'replied' && (
+        <div className="mt-2 pt-2 border-t border-slate-100" onClick={onClick}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded ${
+              complaint.visitBackStatus === 'pending'
+                ? 'bg-orange-50 text-orange-700'
+                : complaint.visitBackStatus === 'completed'
+                ? 'bg-green-50 text-green-700'
+                : 'bg-red-50 text-red-700'
+            }`}>
+              <PhoneCall className="w-3 h-3" />
+              {VISIT_BACK_STATUS_OPTIONS.find((opt) => opt.value === complaint.visitBackStatus)?.label}
+            </span>
+            {complaint.visitBackRecords && complaint.visitBackRecords.length > 0 && (
+              <span className="text-xs text-slate-500">
+                回访 {complaint.visitBackRecords.length} 次
+              </span>
+            )}
+          </div>
+          {complaint.visitBackRecords && complaint.visitBackRecords.length > 0 && (() => {
+            const lastRecord = complaint.visitBackRecords[complaint.visitBackRecords.length - 1];
+            const satisfaction = SATISFACTION_OPTIONS.find((opt) => opt.value === lastRecord.satisfaction);
+            return (
+              <div className="mt-1 flex items-center gap-1">
+                <span className="text-xs text-slate-500">满意度：</span>
+                <span className={`text-xs font-medium ${
+                  satisfaction?.color === 'green' ? 'text-green-600' :
+                  satisfaction?.color === 'blue' ? 'text-blue-600' :
+                  satisfaction?.color === 'yellow' ? 'text-amber-600' :
+                  satisfaction?.color === 'orange' ? 'text-orange-600' :
+                  'text-red-600'
+                }`}>
+                  {satisfaction?.label}
+                </span>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {complaint.escalationRecords && complaint.escalationRecords.length > 0 && (
         <div className="mt-2 pt-2 border-t border-slate-100" onClick={onClick}>

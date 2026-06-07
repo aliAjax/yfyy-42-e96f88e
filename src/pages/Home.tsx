@@ -15,7 +15,7 @@ import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord } from '@/types/complaint';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
@@ -157,6 +157,8 @@ export default function Home() {
       handleRecords: [],
       escalationRecords: [],
       assignmentRecords: [],
+      visitBackStatus: 'pending',
+      visitBackRecords: [],
     };
     setComplaints((prev) => [newComplaint, ...prev]);
     showToast('诉求登记成功！');
@@ -179,6 +181,8 @@ export default function Home() {
       handleRecords: [],
       escalationRecords: [],
       assignmentRecords: [],
+      visitBackStatus: 'pending',
+      visitBackRecords: [],
     }));
     setComplaints((prev) => [...newComplaints, ...prev]);
     setShowImportModal(false);
@@ -349,6 +353,132 @@ export default function Home() {
     });
 
     showToast(`已分派给 ${data.assigneeName}`);
+  };
+
+  const handleVisitBack = (id: string, data: VisitBackFormData) => {
+    if (!hasPermission(currentRole, 'manage_visit_back')) {
+      showToast('无登记回访权限', 'error');
+      return;
+    }
+    const targetComplaint = complaints.find((c) => c.id === id);
+    if (!targetComplaint) {
+      showToast('诉求不存在', 'error');
+      return;
+    }
+    if (!canOperateComplaint(targetComplaint)) {
+      showToast('您只能回访分派给自己的诉求', 'error');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const operatorName = currentRole === 'handler'
+      ? currentHandler?.name || ROLE_LABELS[currentRole]
+      : ROLE_LABELS[currentRole];
+    const operatorId = currentRole === 'handler' ? currentHandlerId : currentRole;
+
+    const isDissatisfied = data.satisfaction === 'dissatisfied' || data.satisfaction === 'very_dissatisfied';
+    const newVisitBackStatus: VisitBackStatus = data.reopenCase
+      ? 'unsatisfied'
+      : isDissatisfied
+      ? 'unsatisfied'
+      : 'completed';
+
+    const visitBackRecord: VisitBackRecord = {
+      id: generateId(),
+      visitBackTime: data.visitBackTime,
+      visitBackResult: data.visitBackResult,
+      satisfaction: data.satisfaction,
+      unsatisfiedReason: data.unsatisfiedReason,
+      secondaryHandleNote: data.secondaryHandleNote,
+      isReopened: data.reopenCase,
+      operatedAt: now,
+      operatorId,
+      operatorName,
+    };
+
+    setComplaints((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+
+        const existingRecords = c.visitBackRecords || [];
+        const updatedVisitBackRecords = [...existingRecords, visitBackRecord];
+
+        let updatedStatus = c.status;
+        let updatedHandleRecords = c.handleRecords;
+        let updatedHandleOpinion = c.handleOpinion;
+        let updatedReplyTime = c.replyTime;
+
+        if (data.reopenCase) {
+          updatedStatus = 'processing';
+          const reopenRecord: HandleRecord = {
+            id: generateId(),
+            status: 'processing',
+            handleOpinion: data.secondaryHandleNote || '因群众不满意，重新进入处理流程',
+            replyTime: '',
+            operatedAt: now,
+            operatorId,
+            operatorName,
+          };
+          updatedHandleRecords = [...c.handleRecords, reopenRecord];
+          updatedHandleOpinion = data.secondaryHandleNote || c.handleOpinion;
+        }
+
+        return {
+          ...c,
+          status: updatedStatus,
+          handleOpinion: updatedHandleOpinion,
+          replyTime: updatedReplyTime,
+          updatedAt: now,
+          handleRecords: updatedHandleRecords,
+          visitBackStatus: data.reopenCase ? 'unsatisfied' : newVisitBackStatus,
+          visitBackRecords: updatedVisitBackRecords,
+        };
+      })
+    );
+
+    setSelectedComplaint((prev) => {
+      if (!prev || prev.id !== id) return prev;
+
+      const existingRecords = prev.visitBackRecords || [];
+      const updatedVisitBackRecords = [...existingRecords, visitBackRecord];
+
+      let updatedStatus = prev.status;
+      let updatedHandleRecords = prev.handleRecords;
+      let updatedHandleOpinion = prev.handleOpinion;
+      let updatedReplyTime = prev.replyTime;
+
+      if (data.reopenCase) {
+        updatedStatus = 'processing';
+        const reopenRecord: HandleRecord = {
+          id: generateId(),
+          status: 'processing',
+          handleOpinion: data.secondaryHandleNote || '因群众不满意，重新进入处理流程',
+          replyTime: '',
+          operatedAt: now,
+          operatorId,
+          operatorName,
+        };
+        updatedHandleRecords = [...prev.handleRecords, reopenRecord];
+        updatedHandleOpinion = data.secondaryHandleNote || prev.handleOpinion;
+      }
+
+      return {
+        ...prev,
+        status: updatedStatus,
+        handleOpinion: updatedHandleOpinion,
+        replyTime: updatedReplyTime,
+        updatedAt: now,
+        handleRecords: updatedHandleRecords,
+        visitBackStatus: data.reopenCase ? 'unsatisfied' : newVisitBackStatus,
+        visitBackRecords: updatedVisitBackRecords,
+      };
+    });
+
+    if (data.reopenCase) {
+      showToast('回访登记成功，诉求已重新进入处理流程！');
+    } else {
+      showToast('回访登记成功！');
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -704,6 +834,7 @@ export default function Home() {
           onEscalate={handleEscalate}
           onDelete={canDelete ? handleDelete : undefined}
           onAssign={handleAssign}
+          onVisitBack={handleVisitBack}
           now={now}
           currentRole={currentRole}
           timeLimitRulesVersion={timeLimitRulesVersion}

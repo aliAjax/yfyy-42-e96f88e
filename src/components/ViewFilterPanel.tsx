@@ -13,8 +13,9 @@ import {
   TrendingUp,
   Tag,
   Radio,
+  Phone,
 } from 'lucide-react';
-import { COMPLAINT_TYPES, SOURCE_CHANNELS, STATUS_OPTIONS, DEFAULT_FILTER } from '@/types/complaint';
+import { COMPLAINT_TYPES, SOURCE_CHANNELS, STATUS_OPTIONS, DEFAULT_FILTER, VISIT_BACK_STATUS_OPTIONS } from '@/types/complaint';
 import type { ViewFilter, SavedView } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import {
@@ -135,7 +136,7 @@ export default function ViewFilterPanel({
     setActiveViewId(currentRole, null);
   }, [currentRole]);
 
-  const toggleArrayItem = useCallback((key: 'types' | 'sources' | 'statuses', value: string) => {
+  const toggleArrayItem = useCallback((key: 'types' | 'sources' | 'statuses' | 'visitBackStatuses', value: string) => {
     updateFilter((prev) => {
       const current = prev[key] as string[];
       const newArr = current.includes(value)
@@ -179,6 +180,7 @@ export default function ViewFilterPanel({
     (filter.types.length > 0 ? 1 : 0) +
     (filter.sources.length > 0 ? 1 : 0) +
     (filter.statuses.length > 0 ? 1 : 0) +
+    (filter.visitBackStatuses.length > 0 ? 1 : 0) +
     (filter.escalated !== null ? 1 : 0) +
     (filter.overdue !== null ? 1 : 0) +
     (filter.receiveTimeStart ? 1 : 0) +
@@ -336,6 +338,32 @@ export default function ViewFilterPanel({
                       filter.statuses.includes(status.value)
                         ? 'bg-green-500 text-white border-green-500'
                         : 'bg-white text-slate-600 border-slate-300 hover:border-green-400'
+                    }`}
+                  >
+                    {status.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Phone className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <label className="text-sm font-medium text-slate-700">回访状态</label>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {VISIT_BACK_STATUS_OPTIONS.map((status) => (
+                  <button
+                    key={status.value}
+                    onClick={() => toggleArrayItem('visitBackStatuses', status.value)}
+                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                      filter.visitBackStatuses.includes(status.value)
+                        ? status.color === 'orange'
+                          ? 'bg-orange-500 text-white border-orange-500'
+                          : status.color === 'green'
+                          ? 'bg-green-500 text-white border-green-500'
+                          : 'bg-red-500 text-white border-red-500'
+                        : 'bg-white text-slate-600 border-slate-300 hover:border-amber-400'
                     }`}
                   >
                     {status.label}
