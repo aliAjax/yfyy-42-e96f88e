@@ -185,3 +185,17 @@ export const DEFAULT_FILTER: ViewFilter = {
   receiveTimeEnd: null,
   keyword: '',
 };
+
+export type BatchActionType = 'status' | 'escalate' | 'delete' | 'export';
+
+export interface BatchStatusData {
+  status: ComplaintStatus;
+  handleOpinion: string;
+  replyTime: string;
+}
+
+export interface BatchEscalateData {
+  reason: string;
+}
+
+export type BatchOperationData = BatchStatusData | BatchEscalateData | Record<string, never>;

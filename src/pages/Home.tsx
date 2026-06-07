@@ -355,6 +355,171 @@ export default function Home() {
     showToast('诉求记录已删除');
   };
 
+  const handleBatchUpdateStatus = (selectedComplaints: Complaint[], data: { status: ComplaintStatus; handleOpinion: string; replyTime: string }) => {
+    if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
+      showToast('无处理权限', 'error');
+      return;
+    }
+    const operableComplaints = selectedComplaints.filter((c) => canOperateComplaint(c));
+    if (operableComplaints.length === 0) {
+      showToast('没有可操作的诉求', 'error');
+      return;
+    }
+    const now = new Date().toISOString();
+    const operableIds = new Set(operableComplaints.map((c) => c.id));
+
+    setComplaints((prev) =>
+      prev.map((c) => {
+        if (!operableIds.has(c.id)) return c;
+
+        const lastRecord = c.handleRecords.length > 0
+          ? c.handleRecords[c.handleRecords.length - 1]
+          : null;
+
+        const hasChanged = !lastRecord
+          || lastRecord.status !== data.status
+          || lastRecord.handleOpinion !== data.handleOpinion
+          || lastRecord.replyTime !== data.replyTime;
+
+        const newRecords = hasChanged
+          ? [
+              ...c.handleRecords,
+              {
+                id: generateId(),
+                status: data.status,
+                handleOpinion: data.handleOpinion,
+                replyTime: data.replyTime,
+                operatedAt: now,
+              },
+            ]
+          : c.handleRecords;
+
+        return {
+          ...c,
+          status: data.status,
+          handleOpinion: data.handleOpinion,
+          replyTime: data.replyTime,
+          updatedAt: now,
+          handleRecords: newRecords,
+        };
+      })
+    );
+
+    if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
+      const updated = operableComplaints.find((c) => c.id === selectedComplaint.id);
+      if (updated) {
+        const lastRecord = updated.handleRecords.length > 0
+          ? updated.handleRecords[updated.handleRecords.length - 1]
+          : null;
+        const hasChanged = !lastRecord
+          || lastRecord.status !== data.status
+          || lastRecord.handleOpinion !== data.handleOpinion
+          || lastRecord.replyTime !== data.replyTime;
+        const newRecords = hasChanged
+          ? [
+              ...updated.handleRecords,
+              {
+                id: generateId(),
+                status: data.status,
+                handleOpinion: data.handleOpinion,
+                replyTime: data.replyTime,
+                operatedAt: now,
+              },
+            ]
+          : updated.handleRecords;
+        setSelectedComplaint({
+          ...updated,
+          status: data.status,
+          handleOpinion: data.handleOpinion,
+          replyTime: data.replyTime,
+          updatedAt: now,
+          handleRecords: newRecords,
+        });
+      }
+    }
+
+    const skipped = selectedComplaints.length - operableComplaints.length;
+    if (skipped > 0) {
+      showToast(`成功更新 ${operableComplaints.length} 条，跳过 ${skipped} 条无权限的诉求`, 'success');
+    } else {
+      showToast(`成功更新 ${operableComplaints.length} 条诉求状态`);
+    }
+  };
+
+  const handleBatchEscalate = (selectedComplaints: Complaint[], reason: string) => {
+    if (!hasPermission(currentRole, 'escalate_complaint')) {
+      showToast('无升级处理权限', 'error');
+      return;
+    }
+    const operableComplaints = selectedComplaints.filter((c) => canOperateComplaint(c));
+    if (operableComplaints.length === 0) {
+      showToast('没有可操作的诉求', 'error');
+      return;
+    }
+    const now = new Date().toISOString();
+    const operableIds = new Set(operableComplaints.map((c) => c.id));
+    const escalationRecord: EscalationRecord = {
+      id: generateId(),
+      reason,
+      escalatedAt: formatDateTime(new Date(now)),
+      escalatedBy: ROLE_LABELS[currentRole],
+    };
+
+    setComplaints((prev) =>
+      prev.map((c) => {
+        if (!operableIds.has(c.id)) return c;
+        const existingRecords = c.escalationRecords || [];
+        return {
+          ...c,
+          updatedAt: now,
+          escalationRecords: [...existingRecords, escalationRecord],
+        };
+      })
+    );
+
+    if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
+      setSelectedComplaint((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          updatedAt: now,
+          escalationRecords: [...(prev.escalationRecords || []), escalationRecord],
+        };
+      });
+    }
+
+    const skipped = selectedComplaints.length - operableComplaints.length;
+    if (skipped > 0) {
+      showToast(`成功升级 ${operableComplaints.length} 条，跳过 ${skipped} 条无权限的诉求`, 'success');
+    } else {
+      showToast(`成功升级 ${operableComplaints.length} 条诉求`);
+    }
+  };
+
+  const handleBatchDelete = (selectedComplaints: Complaint[]) => {
+    if (!hasPermission(currentRole, 'delete_complaint')) {
+      showToast('无删除记录权限', 'error');
+      return;
+    }
+    const idsToDelete = new Set(selectedComplaints.map((c) => c.id));
+    setComplaints((prev) => prev.filter((c) => !idsToDelete.has(c.id)));
+
+    if (selectedComplaint && idsToDelete.has(selectedComplaint.id)) {
+      setSelectedComplaint(null);
+    }
+
+    showToast(`已删除 ${selectedComplaints.length} 条诉求记录`);
+  };
+
+  const handleBatchExport = (selectedComplaints: Complaint[]) => {
+    if (!hasPermission(currentRole, 'export_data')) {
+      showToast('无导出数据权限', 'error');
+      return;
+    }
+    const result = exportComplaintsToCSV(selectedComplaints);
+    showToast(result.message, result.success ? 'success' : 'error');
+  };
+
   const handleRestoreComplete = () => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -528,6 +693,10 @@ export default function Home() {
                 currentRole={currentRole}
                 onDelete={canDelete ? handleDelete : undefined}
                 currentHandlerId={currentHandlerId}
+                onBatchUpdateStatus={handleBatchUpdateStatus}
+                onBatchEscalate={handleBatchEscalate}
+                onBatchDelete={canDelete ? handleBatchDelete : undefined}
+                onBatchExport={handleBatchExport}
               />
             </div>
           </div>

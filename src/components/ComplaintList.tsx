@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ListFilter, Download, Lock, Search } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import ViewFilterPanel from './ViewFilterPanel';
-import type { Complaint, ViewFilter } from '@/types/complaint';
+import BatchActionBar from './BatchActionBar';
+import BatchOperationModal from './BatchOperationModal';
+import type { Complaint, ViewFilter, BatchActionType } from '@/types/complaint';
 import { DEFAULT_FILTER } from '@/types/complaint';
 import { calculateOverdueInfo } from '@/utils/overdue';
 import type { UserRole } from '@/utils/permissions';
@@ -17,6 +19,10 @@ interface ComplaintListProps {
   currentRole: UserRole;
   onDelete?: (id: string) => void;
   currentHandlerId?: string;
+  onBatchUpdateStatus?: (complaints: Complaint[], data: any) => void;
+  onBatchEscalate?: (complaints: Complaint[], reason: string) => void;
+  onBatchDelete?: (complaints: Complaint[]) => void;
+  onBatchExport?: (complaints: Complaint[]) => void;
 }
 
 export default function ComplaintList({
@@ -27,12 +33,21 @@ export default function ComplaintList({
   currentRole,
   onDelete,
   currentHandlerId,
+  onBatchUpdateStatus,
+  onBatchEscalate,
+  onBatchDelete,
+  onBatchExport,
 }: ComplaintListProps) {
   const canExport = hasPermission(currentRole, 'export_data');
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
+  const canUpdateStatus = hasPermission(currentRole, 'update_status');
+  const canEscalate = hasPermission(currentRole, 'escalate_complaint');
+  const canDelete = hasPermission(currentRole, 'delete_complaint');
   const exportDisabledReason = getDisabledReason(currentRole, 'export_data');
 
   const [filter, setFilter] = useState<ViewFilter>({ ...DEFAULT_FILTER });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchAction, setBatchAction] = useState<BatchActionType | null>(null);
 
   const visibleComplaints = useMemo(() => {
     if (!canViewAll) {
@@ -56,8 +71,85 @@ export default function ComplaintList({
     });
   }, [visibleComplaints, filter, now]);
 
+  const selectedComplaints = useMemo(() => {
+    return filteredComplaints.filter((c) => selectedIds.has(c.id));
+  }, [filteredComplaints, selectedIds]);
+
+  const allSelected = filteredComplaints.length > 0 && selectedIds.size === filteredComplaints.length;
+  const someSelected = selectedIds.size > 0 && !allSelected;
+
+  const hasAnyBatchPermission = canUpdateStatus || canEscalate || canDelete || canExport;
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filter]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const filteredIds = new Set(filteredComplaints.map((c) => c.id));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (filteredIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [filteredComplaints]);
+
   const handleFilterChange = (newFilter: ViewFilter) => {
     setFilter(newFilter);
+  };
+
+  const handleSelect = (id: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredComplaints.map((c) => c.id)));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleBatchAction = (action: BatchActionType) => {
+    if (selectedComplaints.length === 0) return;
+    setBatchAction(action);
+  };
+
+  const handleBatchConfirm = (action: BatchActionType, data: any) => {
+    switch (action) {
+      case 'status':
+        onBatchUpdateStatus && onBatchUpdateStatus(selectedComplaints, data);
+        break;
+      case 'escalate':
+        onBatchEscalate && onBatchEscalate(selectedComplaints, data.reason);
+        break;
+      case 'delete':
+        onBatchDelete && onBatchDelete(selectedComplaints);
+        break;
+      case 'export':
+        onBatchExport && onBatchExport(selectedComplaints);
+        break;
+    }
+    setBatchAction(null);
+    setSelectedIds(new Set());
   };
 
   return (
@@ -95,6 +187,19 @@ export default function ComplaintList({
         </div>
       </div>
 
+      {hasAnyBatchPermission && selectedIds.size > 0 && (
+        <BatchActionBar
+          selectedCount={selectedIds.size}
+          totalCount={filteredComplaints.length}
+          currentRole={currentRole}
+          onAction={handleBatchAction}
+          onClear={handleClearSelection}
+          onSelectAll={handleSelectAll}
+          allSelected={allSelected}
+          someSelected={someSelected}
+        />
+      )}
+
       <ViewFilterPanel
         filter={filter}
         onFilterChange={handleFilterChange}
@@ -119,10 +224,21 @@ export default function ComplaintList({
               onClick={() => onCardClick(complaint)}
               currentRole={currentRole}
               onDelete={onDelete}
+              selectable={hasAnyBatchPermission}
+              selected={selectedIds.has(complaint.id)}
+              onSelect={handleSelect}
             />
           ))
         )}
       </div>
+
+      <BatchOperationModal
+        action={batchAction}
+        selectedComplaints={selectedComplaints}
+        currentRole={currentRole}
+        onClose={() => setBatchAction(null)}
+        onConfirm={handleBatchConfirm}
+      />
     </div>
   );
 }

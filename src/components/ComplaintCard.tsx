@@ -12,18 +12,38 @@ interface ComplaintCardProps {
   now?: Date;
   currentRole: UserRole;
   onDelete?: (id: string) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
 }
 
-export default function ComplaintCard({ complaint, onClick, now, currentRole, onDelete }: ComplaintCardProps) {
+export default function ComplaintCard({
+  complaint,
+  onClick,
+  now,
+  currentRole,
+  onDelete,
+  selectable = false,
+  selected = false,
+  onSelect,
+}: ComplaintCardProps) {
   const overdueInfo = calculateOverdueInfo(complaint, now);
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
   const [showDeleteTip, setShowDeleteTip] = useState(false);
 
   const getBorderClass = () => {
+    if (selected) return 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/30';
     if (overdueInfo.isOverdue) return 'border-red-400 ring-2 ring-red-100';
     if (overdueInfo.isWarning) return 'border-amber-400 ring-2 ring-amber-100';
     return 'border-slate-200 hover:border-blue-300';
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (onSelect) {
+      onSelect(complaint.id, e.target.checked);
+    }
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -39,6 +59,17 @@ export default function ComplaintCard({ complaint, onClick, now, currentRole, on
       className={`bg-white rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 ${getBorderClass()}`}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
+        {selectable && (
+          <div className="flex-shrink-0 pt-0.5">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={handleCheckboxChange}
+              onClick={(e) => e.stopPropagation()}
+              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          </div>
+        )}
         <div className="flex items-center gap-2 min-w-0 flex-1" onClick={onClick}>
           <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
             <User className="w-4 h-4 text-slate-500" />
