@@ -389,7 +389,7 @@ export default function TimeLimitRuleManageModal({ onClose, onSave }: TimeLimitR
                     <div className="text-sm text-red-800">
                       <p className="font-medium">配置无效</p>
                       <p className="mt-1 text-red-700 opacity-90">
-                        工作时间功能已启用，但没有配置任何有效的工作日时段。请至少启用一个工作日并配置有效的工作时段，否则工作时间计算将不会生效。
+                        工作时间功能已启用，但没有配置任何有效的工作日时段。请至少启用一个工作日并配置有效的工作时段，否则相关诉求将回退为自然小时计算。
                       </p>
                     </div>
                   </div>

@@ -102,7 +102,9 @@ export function calculateOverdueInfo(complaint: Complaint, now?: Date): OverdueI
   const { timeLimitHours, warningHours } = getTimeLimitByTypeAndSource(complaint.type, complaint.source);
   const workTimeRule = getWorkTimeRule();
 
-  const useWorkTime = workTimeRule.enabled && rule?.useWorkTime;
+  const useWorkTime = Boolean(
+    workTimeRule.enabled && rule?.useWorkTime && isWorkTimeRuleValid(workTimeRule)
+  );
 
   const receiveTime = new Date(complaint.receiveTime.replace(' ', 'T'));
   let deadline: Date;
