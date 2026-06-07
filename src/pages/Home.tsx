@@ -15,7 +15,7 @@ import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser } from '@/types/complaint';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
@@ -201,6 +201,10 @@ export default function Home() {
     return true;
   };
 
+  const currentHandler = useMemo(() => {
+    return handlers.find((h) => h.id === currentHandlerId) || null;
+  }, [handlers, currentHandlerId]);
+
   const handleComplaint = (id: string, data: HandleFormData) => {
     if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
       showToast('无处理权限', 'error');
@@ -355,7 +359,7 @@ export default function Home() {
     showToast('诉求记录已删除');
   };
 
-  const handleBatchUpdateStatus = (selectedComplaints: Complaint[], data: { status: ComplaintStatus; handleOpinion: string; replyTime: string }) => {
+  const handleBatchUpdateStatus = (selectedComplaints: Complaint[], data: BatchStatusData) => {
     if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
       showToast('无处理权限', 'error');
       return;
@@ -367,6 +371,8 @@ export default function Home() {
     }
     const now = new Date().toISOString();
     const operableIds = new Set(operableComplaints.map((c) => c.id));
+    const operatorName = currentHandler?.name || ROLE_LABELS[currentRole];
+    const operatorId = currentHandlerId || '';
 
     setComplaints((prev) =>
       prev.map((c) => {
@@ -390,6 +396,8 @@ export default function Home() {
                 handleOpinion: data.handleOpinion,
                 replyTime: data.replyTime,
                 operatedAt: now,
+                operatorId,
+                operatorName,
               },
             ]
           : c.handleRecords;
@@ -406,10 +414,10 @@ export default function Home() {
     );
 
     if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
-      const updated = operableComplaints.find((c) => c.id === selectedComplaint.id);
-      if (updated) {
-        const lastRecord = updated.handleRecords.length > 0
-          ? updated.handleRecords[updated.handleRecords.length - 1]
+      setSelectedComplaint((prev) => {
+        if (!prev) return prev;
+        const lastRecord = prev.handleRecords.length > 0
+          ? prev.handleRecords[prev.handleRecords.length - 1]
           : null;
         const hasChanged = !lastRecord
           || lastRecord.status !== data.status
@@ -417,25 +425,27 @@ export default function Home() {
           || lastRecord.replyTime !== data.replyTime;
         const newRecords = hasChanged
           ? [
-              ...updated.handleRecords,
+              ...prev.handleRecords,
               {
                 id: generateId(),
                 status: data.status,
                 handleOpinion: data.handleOpinion,
                 replyTime: data.replyTime,
                 operatedAt: now,
+                operatorId,
+                operatorName,
               },
             ]
-          : updated.handleRecords;
-        setSelectedComplaint({
-          ...updated,
+          : prev.handleRecords;
+        return {
+          ...prev,
           status: data.status,
           handleOpinion: data.handleOpinion,
           replyTime: data.replyTime,
           updatedAt: now,
           handleRecords: newRecords,
-        });
-      }
+        };
+      });
     }
 
     const skipped = selectedComplaints.length - operableComplaints.length;
@@ -458,21 +468,23 @@ export default function Home() {
     }
     const now = new Date().toISOString();
     const operableIds = new Set(operableComplaints.map((c) => c.id));
-    const escalationRecord: EscalationRecord = {
-      id: generateId(),
-      reason,
-      escalatedAt: formatDateTime(new Date(now)),
-      escalatedBy: ROLE_LABELS[currentRole],
-    };
+    const escalatedBy = ROLE_LABELS[currentRole];
+    const escalatedAt = formatDateTime(new Date(now));
 
     setComplaints((prev) =>
       prev.map((c) => {
         if (!operableIds.has(c.id)) return c;
         const existingRecords = c.escalationRecords || [];
+        const newRecord: EscalationRecord = {
+          id: generateId(),
+          reason,
+          escalatedAt,
+          escalatedBy,
+        };
         return {
           ...c,
           updatedAt: now,
-          escalationRecords: [...existingRecords, escalationRecord],
+          escalationRecords: [...existingRecords, newRecord],
         };
       })
     );
@@ -480,10 +492,16 @@ export default function Home() {
     if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
       setSelectedComplaint((prev) => {
         if (!prev) return prev;
+        const newRecord: EscalationRecord = {
+          id: generateId(),
+          reason,
+          escalatedAt,
+          escalatedBy,
+        };
         return {
           ...prev,
           updatedAt: now,
-          escalationRecords: [...(prev.escalationRecords || []), escalationRecord],
+          escalationRecords: [...(prev.escalationRecords || []), newRecord],
         };
       });
     }

@@ -1,27 +1,30 @@
 import { useState, useEffect } from 'react';
 import { X, CheckSquare, TrendingUp, Trash2, Download, AlertTriangle, Shield, Info } from 'lucide-react';
 import { STATUS_OPTIONS } from '@/types/complaint';
-import type { Complaint, BatchActionType, BatchStatusData, BatchEscalateData } from '@/types/complaint';
-import type { UserRole } from '@/utils/permissions';
-import { hasPermission, getDisabledReason, ROLE_LABELS, getPermissionLabel } from '@/utils/permissions';
+import type { Complaint, BatchActionType, BatchStatusData, BatchEscalateData, BatchOperationData } from '@/types/complaint';
+import type { UserRole, PermissionAction } from '@/utils/permissions';
+import { hasPermission, ROLE_LABELS, getPermissionLabel } from '@/utils/permissions';
 import { getCurrentDateTime } from '@/utils/helpers';
+import type { LucideIcon } from 'lucide-react';
 
 interface BatchOperationModalProps {
   action: BatchActionType | null;
   selectedComplaints: Complaint[];
   currentRole: UserRole;
   onClose: () => void;
-  onConfirm: (action: BatchActionType, data: any) => void;
+  onConfirm: (action: BatchActionType, data: BatchOperationData) => void;
 }
 
-const actionConfig: Record<BatchActionType, {
+interface ActionConfig {
   label: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
   bgColor: string;
-  permission: string;
+  permission: PermissionAction;
   description: string;
-}> = {
+}
+
+const actionConfig: Record<BatchActionType, ActionConfig> = {
   status: {
     label: '批量更新状态',
     icon: CheckSquare,
@@ -89,7 +92,7 @@ export default function BatchOperationModal({
 
   const config = actionConfig[action];
   const Icon = config.icon;
-  const canPerform = hasPermission(currentRole, config.permission as any);
+  const canPerform = hasPermission(currentRole, config.permission);
   const count = selectedComplaints.length;
 
   const handleStatusChange = (status: typeof statusData.status) => {
@@ -134,7 +137,6 @@ export default function BatchOperationModal({
   const getSummaryStats = () => {
     const statusCounts: Record<string, number> = {};
     const typeCounts: Record<string, number> = {};
-    let overdueCount = 0;
     let escalatedCount = 0;
 
     selectedComplaints.forEach((c) => {
@@ -145,7 +147,7 @@ export default function BatchOperationModal({
       }
     });
 
-    return { statusCounts, typeCounts, overdueCount, escalatedCount };
+    return { statusCounts, typeCounts, escalatedCount };
   };
 
   const stats = getSummaryStats();
@@ -187,7 +189,7 @@ export default function BatchOperationModal({
                   <p className="text-sm font-medium text-amber-800">权限不足</p>
                   <p className="text-xs text-amber-700 mt-1">
                     当前角色为「{ROLE_LABELS[currentRole]}」，
-                    无{getPermissionLabel(config.permission as any)}权限。
+                    无{getPermissionLabel(config.permission)}权限。
                   </p>
                 </div>
               </div>

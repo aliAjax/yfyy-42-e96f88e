@@ -4,7 +4,14 @@ import ComplaintCard from './ComplaintCard';
 import ViewFilterPanel from './ViewFilterPanel';
 import BatchActionBar from './BatchActionBar';
 import BatchOperationModal from './BatchOperationModal';
-import type { Complaint, ViewFilter, BatchActionType } from '@/types/complaint';
+import type {
+  Complaint,
+  ViewFilter,
+  BatchActionType,
+  BatchStatusData,
+  BatchEscalateData,
+  BatchOperationData,
+} from '@/types/complaint';
 import { DEFAULT_FILTER } from '@/types/complaint';
 import { calculateOverdueInfo } from '@/utils/overdue';
 import type { UserRole } from '@/utils/permissions';
@@ -19,7 +26,7 @@ interface ComplaintListProps {
   currentRole: UserRole;
   onDelete?: (id: string) => void;
   currentHandlerId?: string;
-  onBatchUpdateStatus?: (complaints: Complaint[], data: any) => void;
+  onBatchUpdateStatus?: (complaints: Complaint[], data: BatchStatusData) => void;
   onBatchEscalate?: (complaints: Complaint[], reason: string) => void;
   onBatchDelete?: (complaints: Complaint[]) => void;
   onBatchExport?: (complaints: Complaint[]) => void;
@@ -133,19 +140,27 @@ export default function ComplaintList({
     setBatchAction(action);
   };
 
-  const handleBatchConfirm = (action: BatchActionType, data: any) => {
+  const handleBatchConfirm = (action: BatchActionType, data: BatchOperationData) => {
     switch (action) {
       case 'status':
-        onBatchUpdateStatus && onBatchUpdateStatus(selectedComplaints, data);
+        if (onBatchUpdateStatus) {
+          onBatchUpdateStatus(selectedComplaints, data as BatchStatusData);
+        }
         break;
       case 'escalate':
-        onBatchEscalate && onBatchEscalate(selectedComplaints, data.reason);
+        if (onBatchEscalate) {
+          onBatchEscalate(selectedComplaints, (data as BatchEscalateData).reason);
+        }
         break;
       case 'delete':
-        onBatchDelete && onBatchDelete(selectedComplaints);
+        if (onBatchDelete) {
+          onBatchDelete(selectedComplaints);
+        }
         break;
       case 'export':
-        onBatchExport && onBatchExport(selectedComplaints);
+        if (onBatchExport) {
+          onBatchExport(selectedComplaints);
+        }
         break;
     }
     setBatchAction(null);
@@ -167,7 +182,11 @@ export default function ComplaintList({
         </div>
         <div className="relative group">
           <button
-            onClick={() => canExport && onExport && onExport(filteredComplaints)}
+            onClick={() => {
+              if (canExport && onExport) {
+                onExport(filteredComplaints);
+              }
+            }}
             disabled={!canExport || !onExport}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
               canExport
