@@ -60,14 +60,19 @@ export default function ViewFilterPanel({
     const savedViews = getSavedViews(currentRole);
     setViews(savedViews);
     const activeId = getActiveViewId(currentRole);
-    if (activeId && savedViews.some((v) => v.id === activeId)) {
-      setActiveViewIdState(activeId);
-      const view = savedViews.find((v) => v.id === activeId);
-      if (view) {
-        onFilterChangeRef.current({ ...view.filter });
-      }
-    } else if (savedViews.length > 0) {
-      setActiveViewIdState(savedViews[0].id);
+    const activeView = activeId
+      ? savedViews.find((view) => view.id === activeId)
+      : null;
+    const nextView = activeView ?? savedViews[0] ?? null;
+
+    if (nextView) {
+      setActiveViewIdState(nextView.id);
+      setActiveViewId(currentRole, nextView.id);
+      onFilterChangeRef.current({ ...nextView.filter });
+    } else {
+      setActiveViewIdState(null);
+      setActiveViewId(currentRole, null);
+      onFilterChangeRef.current({ ...DEFAULT_FILTER });
     }
   }, [currentRole]);
 
