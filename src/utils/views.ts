@@ -8,15 +8,15 @@ const VIEWS_STORAGE_KEY = 'complaint_saved_views';
 const ACTIVE_VIEW_STORAGE_KEY = 'complaint_active_view';
 
 export function getSavedViews(role: UserRole): SavedView[] {
+  const defaults = getDefaultViews(role);
   const stored = localStorage.getItem(VIEWS_STORAGE_KEY);
-  if (!stored) return getDefaultViews(role);
+  if (!stored) return defaults;
   try {
     const allViews: SavedView[] = JSON.parse(stored);
     const roleViews = allViews.filter((v) => v.role === role);
-    if (roleViews.length === 0) return getDefaultViews(role);
-    return roleViews;
+    return [...defaults, ...roleViews];
   } catch {
-    return getDefaultViews(role);
+    return defaults;
   }
 }
 

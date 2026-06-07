@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search,
   Filter,
@@ -50,6 +50,11 @@ export default function ViewFilterPanel({
   const [viewName, setViewName] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const saveModalRef = useRef<HTMLDivElement>(null);
+  const onFilterChangeRef = useRef(onFilterChange);
+
+  useEffect(() => {
+    onFilterChangeRef.current = onFilterChange;
+  }, [onFilterChange]);
 
   useEffect(() => {
     const savedViews = getSavedViews(currentRole);
@@ -59,7 +64,7 @@ export default function ViewFilterPanel({
       setActiveViewIdState(activeId);
       const view = savedViews.find((v) => v.id === activeId);
       if (view) {
-        onFilterChange({ ...view.filter });
+        onFilterChangeRef.current({ ...view.filter });
       }
     } else if (savedViews.length > 0) {
       setActiveViewIdState(savedViews[0].id);
@@ -81,14 +86,14 @@ export default function ViewFilterPanel({
 
   const activeView = views.find((v) => v.id === activeViewId);
 
-  const handleViewSelect = (view: SavedView) => {
+  const handleViewSelect = useCallback((view: SavedView) => {
     setActiveViewIdState(view.id);
     setActiveViewId(currentRole, view.id);
-    onFilterChange({ ...view.filter });
+    onFilterChangeRef.current({ ...view.filter });
     setShowViewDropdown(false);
-  };
+  }, [currentRole]);
 
-  const handleSaveView = () => {
+  const handleSaveView = useCallback(() => {
     if (!viewName.trim()) return;
     const newView = saveView(viewName.trim(), filter, currentRole);
     setViews(getSavedViews(currentRole));
@@ -96,9 +101,9 @@ export default function ViewFilterPanel({
     setActiveViewId(currentRole, newView.id);
     setShowSaveModal(false);
     setViewName('');
-  };
+  }, [viewName, filter, currentRole]);
 
-  const handleDeleteView = (viewId: string, e: React.MouseEvent) => {
+  const handleDeleteView = useCallback((viewId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isDefaultView(viewId)) return;
     if (deleteView(viewId, currentRole)) {
@@ -107,40 +112,52 @@ export default function ViewFilterPanel({
       if (activeViewId === viewId && newViews.length > 0) {
         setActiveViewIdState(newViews[0].id);
         setActiveViewId(currentRole, newViews[0].id);
-        onFilterChange({ ...newViews[0].filter });
+        onFilterChangeRef.current({ ...newViews[0].filter });
       }
     }
-  };
+  }, [currentRole, activeViewId]);
 
-  const handleFilterChange = (key: keyof ViewFilter, value: any) => {
-    const newFilter = { ...filter, [key]: value };
-    onFilterChange(newFilter);
+  const updateFilter = useCallback((updater: (prev: ViewFilter) => ViewFilter) => {
+    const newFilter = updater(filter);
+    onFilterChangeRef.current(newFilter);
     setActiveViewIdState(null);
     setActiveViewId(currentRole, null);
-  };
+  }, [filter, currentRole]);
 
-  const handleReset = () => {
-    onFilterChange({ ...DEFAULT_FILTER });
+  const handleReset = useCallback(() => {
+    onFilterChangeRef.current({ ...DEFAULT_FILTER });
     setActiveViewIdState(null);
     setActiveViewId(currentRole, null);
-  };
+  }, [currentRole]);
 
-  const toggleArrayItem = (key: 'types' | 'sources' | 'statuses', value: string) => {
-    const current = filter[key] as string[];
-    const newArr = current.includes(value)
-      ? current.filter((v) => v !== value)
-      : [...current, value];
-    handleFilterChange(key, newArr);
-  };
+  const toggleArrayItem = useCallback((key: 'types' | 'sources' | 'statuses', value: string) => {
+    updateFilter((prev) => {
+      const current = prev[key] as string[];
+      const newArr = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      return { ...prev, [key]: newArr };
+    });
+  }, [updateFilter]);
 
-  const toggleTriState = (key: 'escalated' | 'overdue') => {
-    const current = filter[key];
-    let next: boolean | null;
-    if (current === null) next = true;
-    else if (current === true) next = false;
-    else next = null;
-    handleFilterChange(key, next);
-  };
+  const toggleTriState = useCallback((key: 'escalated' | 'overdue') => {
+    updateFilter((prev) => {
+      const current = prev[key];
+      let next: boolean | null;
+      if (current === null) next = true;
+      else if (current === true) next = false;
+      else next = null;
+      return { ...prev, [key]: next };
+    });
+  }, [updateFilter]);
+
+  const handleKeywordChange = useCallback((value: string) => {
+    updateFilter((prev) => ({ ...prev, keyword: value }));
+  }, [updateFilter]);
+
+  const handleDateChange = useCallback((key: 'receiveTimeStart' | 'receiveTimeEnd', value: string | null) => {
+    updateFilter((prev) => ({ ...prev, [key]: value }));
+  }, [updateFilter]);
 
   const getTriStateLabel = (value: boolean | null, label: string) => {
     if (value === null) return label;
@@ -165,7 +182,7 @@ export default function ViewFilterPanel({
 
   return (
     <div className="bg-white border-b border-slate-200">
-      <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
+      <div className="px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
           <div className="relative flex-shrink-0" ref={dropdownRef}>
             <button
@@ -178,7 +195,7 @@ export default function ViewFilterPanel({
             </button>
 
             {showViewDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-20 py-1 max-h-80 overflow-y-auto">
+              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-30 py-1 max-h-80 overflow-y-auto">
                 {views.map((view) => (
                   <div
                     key={view.id}
@@ -203,19 +220,19 @@ export default function ViewFilterPanel({
             )}
           </div>
 
-          <div className="relative flex-1 min-w-[160px] sm:min-w-[200px] max-w-md">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="搜索姓名、内容、电话..."
               value={filter.keyword}
-              onChange={(e) => handleFilterChange('keyword', e.target.value)}
+              onChange={(e) => handleKeywordChange(e.target.value)}
               className="w-full pl-8 sm:pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 sm:justify-end">
           <button
             onClick={() => setShowFilterPanel(!showFilterPanel)}
             className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
@@ -224,10 +241,10 @@ export default function ViewFilterPanel({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Filter className="w-4 h-4" />
+            <Filter className="w-4 h-4 flex-shrink-0" />
             <span className="hidden sm:inline">高级筛选</span>
             {activeFilterCount > 0 && (
-              <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+              <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                 {activeFilterCount}
               </span>
             )}
@@ -237,14 +254,14 @@ export default function ViewFilterPanel({
             onClick={() => setShowSaveModal(true)}
             className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 text-sm font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg transition-colors"
           >
-            <Save className="w-4 h-4" />
+            <Save className="w-4 h-4 flex-shrink-0" />
             <span className="hidden sm:inline">保存视图</span>
           </button>
 
           {!isFilterEmpty(filter) && (
             <button
               onClick={handleReset}
-              className="flex items-center gap-1 p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              className="flex items-center justify-center p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors w-9 h-9 sm:ml-0"
               title="重置筛选"
             >
               <X className="w-4 h-4" />
@@ -255,10 +272,10 @@ export default function ViewFilterPanel({
 
       {showFilterPanel && (
         <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-200">
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            <div className="col-span-2 sm:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <Tag className="w-3.5 h-3.5 text-slate-500" />
+                <Tag className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <label className="text-sm font-medium text-slate-700">诉求类型</label>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -278,9 +295,9 @@ export default function ViewFilterPanel({
               </div>
             </div>
 
-            <div className="col-span-2 sm:col-span-1">
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <Radio className="w-3.5 h-3.5 text-slate-500" />
+                <Radio className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <label className="text-sm font-medium text-slate-700">来源渠道</label>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -300,9 +317,9 @@ export default function ViewFilterPanel({
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-3.5 h-3.5 text-slate-500" />
+                <Zap className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <label className="text-sm font-medium text-slate-700">处理状态</label>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -322,9 +339,9 @@ export default function ViewFilterPanel({
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
+                <TrendingUp className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <label className="text-sm font-medium text-slate-700">是否升级</label>
               </div>
               <button
@@ -335,9 +352,9 @@ export default function ViewFilterPanel({
               </button>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-slate-500" />
+                <AlertTriangle className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <label className="text-sm font-medium text-slate-700">是否超期</label>
               </div>
               <button
@@ -348,30 +365,30 @@ export default function ViewFilterPanel({
               </button>
             </div>
 
-            <div className="col-span-2 sm:col-span-2 lg:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-2 min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <Calendar className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <label className="text-sm font-medium text-slate-700">受理时间范围</label>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <input
                   type="date"
                   value={filter.receiveTimeStart || ''}
-                  onChange={(e) => handleFilterChange('receiveTimeStart', e.target.value || null)}
+                  onChange={(e) => handleDateChange('receiveTimeStart', e.target.value || null)}
                   className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <span className="text-slate-400 text-xs flex-shrink-0">至</span>
                 <input
                   type="date"
                   value={filter.receiveTimeEnd || ''}
-                  onChange={(e) => handleFilterChange('receiveTimeEnd', e.target.value || null)}
+                  onChange={(e) => handleDateChange('receiveTimeEnd', e.target.value || null)}
                   className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+          <div className="mt-4 pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
             <span>
               当前筛选结果：<span className="font-medium text-slate-700">{filteredCount}</span> / 总计 {totalCount} 条
             </span>
@@ -400,7 +417,11 @@ export default function ViewFilterPanel({
               placeholder="请输入视图名称"
               autoFocus
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveView()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSaveView();
+                }
+              }}
             />
             <div className="flex justify-end gap-2">
               <button
