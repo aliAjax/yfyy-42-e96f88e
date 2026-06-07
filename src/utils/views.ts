@@ -20,6 +20,8 @@ function normalizeFilter(filter: Partial<ViewFilter>): ViewFilter {
     escalationMax: filter.escalationMax !== undefined ? filter.escalationMax : null,
     responseTimeMinHours: filter.responseTimeMinHours !== undefined ? filter.responseTimeMinHours : null,
     responseTimeMaxHours: filter.responseTimeMaxHours !== undefined ? filter.responseTimeMaxHours : null,
+    statusFlowFrom: filter.statusFlowFrom !== undefined ? filter.statusFlowFrom : null,
+    statusFlowTo: filter.statusFlowTo !== undefined ? filter.statusFlowTo : null,
     receiveTimeStart: filter.receiveTimeStart !== undefined ? filter.receiveTimeStart : null,
     receiveTimeEnd: filter.receiveTimeEnd !== undefined ? filter.receiveTimeEnd : null,
     keyword: filter.keyword || '',
@@ -241,6 +243,19 @@ export function applyFilter(
       if (filter.responseTimeMinHours !== null && responseHours < filter.responseTimeMinHours) return false;
       if (filter.responseTimeMaxHours !== null && responseHours >= filter.responseTimeMaxHours) return false;
     }
+    if (filter.statusFlowFrom !== null || filter.statusFlowTo !== null) {
+      const records = [...(c.handleRecords || [])].sort(
+        (a, b) => new Date(a.operatedAt).getTime() - new Date(b.operatedAt).getTime()
+      );
+      const hasMatchingTransition = records.some((record, index) => {
+        if (index === 0) return false;
+        const previous = records[index - 1];
+        const matchesFrom = filter.statusFlowFrom === null || previous.status === filter.statusFlowFrom;
+        const matchesTo = filter.statusFlowTo === null || record.status === filter.statusFlowTo;
+        return matchesFrom && matchesTo;
+      });
+      if (!hasMatchingTransition) return false;
+    }
     if (filter.receiveTimeStart) {
       if (new Date(c.receiveTime) < new Date(filter.receiveTimeStart)) return false;
     }
@@ -274,6 +289,8 @@ export function isFilterEmpty(filter: ViewFilter): boolean {
     filter.escalationMax === null &&
     filter.responseTimeMinHours === null &&
     filter.responseTimeMaxHours === null &&
+    filter.statusFlowFrom === null &&
+    filter.statusFlowTo === null &&
     filter.receiveTimeStart === null &&
     filter.receiveTimeEnd === null &&
     !filter.keyword.trim()

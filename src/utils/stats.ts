@@ -1,4 +1,4 @@
-import { COMPLAINT_TYPES, SOURCE_CHANNELS, SATISFACTION_OPTIONS, STATUS_OPTIONS } from '@/types/complaint';
+import { COMPLAINT_TYPES, SOURCE_CHANNELS, SATISFACTION_OPTIONS } from '@/types/complaint';
 import type {
   Complaint,
   DashboardStats,

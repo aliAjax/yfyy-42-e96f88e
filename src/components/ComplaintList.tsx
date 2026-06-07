@@ -87,6 +87,8 @@ export default function ComplaintList({
         escalationMax: externalFilter.escalationMax !== undefined ? externalFilter.escalationMax : null,
         responseTimeMinHours: externalFilter.responseTimeMinHours !== undefined ? externalFilter.responseTimeMinHours : null,
         responseTimeMaxHours: externalFilter.responseTimeMaxHours !== undefined ? externalFilter.responseTimeMaxHours : null,
+        statusFlowFrom: externalFilter.statusFlowFrom !== undefined ? externalFilter.statusFlowFrom : null,
+        statusFlowTo: externalFilter.statusFlowTo !== undefined ? externalFilter.statusFlowTo : null,
         receiveTimeStart: externalFilter.receiveTimeStart !== undefined ? externalFilter.receiveTimeStart : null,
         receiveTimeEnd: externalFilter.receiveTimeEnd !== undefined ? externalFilter.receiveTimeEnd : null,
         keyword: externalFilter.keyword || '',

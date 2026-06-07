@@ -4,7 +4,6 @@ import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
 import DetailModal from '@/components/DetailModal';
-import Dashboard from '@/components/Dashboard';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
 import ImportModal from '@/components/ImportModal';
 import DuplicateGroupModal from '@/components/DuplicateGroupModal';
@@ -14,14 +13,14 @@ import TimeLimitRuleManageModal from '@/components/TimeLimitRuleManageModal';
 import OperationLogModal from '@/components/OperationLogModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
-import { calculateDashboardStats, calculateAnalysisStats } from '@/utils/stats';
+import { calculateAnalysisStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
 import { mergeComplaints, getMasterComplaint } from '@/utils/merge';
 import { logOperation as recordOperationLog } from '@/utils/operationLog';
 import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus, AnalysisFilter, ViewFilter } from '@/types/complaint';
-import { DEFAULT_ANALYSIS_FILTER, DEFAULT_FILTER } from '@/types/complaint';
+import { DEFAULT_ANALYSIS_FILTER } from '@/types/complaint';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 import type { UserRole } from '@/utils/permissions';
 
@@ -76,12 +75,6 @@ export default function Home() {
     }
     return result;
   }, [complaints, canViewAll, currentHandlerId, showMerged]);
-
-  const dashboardStats = useMemo(
-    () => calculateDashboardStats(visibleComplaints, now),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleComplaints, now, timeLimitRulesVersion]
-  );
 
   const analysisStats = useMemo(
     () => calculateAnalysisStats(visibleComplaints, analysisFilter, now),
@@ -1167,7 +1160,6 @@ export default function Home() {
                 onFilterChange={handleAnalysisFilterChange}
                 onDrillDown={handleAnalysisDrillDown}
                 complaints={visibleComplaints}
-                onClose={() => setShowDashboard(false)}
                 onExport={handleExport}
               />
             </div>

@@ -188,6 +188,7 @@ export default function ViewFilterPanel({
     (filter.overdueLevel !== null ? 1 : 0) +
     (filter.escalationMin !== null || filter.escalationMax !== null ? 1 : 0) +
     (filter.responseTimeMinHours !== null || filter.responseTimeMaxHours !== null ? 1 : 0) +
+    (filter.statusFlowFrom !== null || filter.statusFlowTo !== null ? 1 : 0) +
     (filter.receiveTimeStart ? 1 : 0) +
     (filter.receiveTimeEnd ? 1 : 0)
   );

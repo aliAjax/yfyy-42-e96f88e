@@ -402,6 +402,8 @@ export interface ViewFilter {
   escalationMax: number | null;
   responseTimeMinHours: number | null;
   responseTimeMaxHours: number | null;
+  statusFlowFrom: ComplaintStatus | null;
+  statusFlowTo: ComplaintStatus | null;
   receiveTimeStart: string | null;
   receiveTimeEnd: string | null;
   keyword: string;
@@ -428,6 +430,8 @@ export const DEFAULT_FILTER: ViewFilter = {
   escalationMax: null,
   responseTimeMinHours: null,
   responseTimeMaxHours: null,
+  statusFlowFrom: null,
+  statusFlowTo: null,
   receiveTimeStart: null,
   receiveTimeEnd: null,
   keyword: '',

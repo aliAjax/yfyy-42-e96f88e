@@ -5,7 +5,6 @@ import {
   MessageCircle,
   CheckCircle2,
   AlertTriangle,
-  AlertCircle,
   Layers,
   TrendingUp,
   Download,
@@ -22,13 +21,9 @@ import type {
   AnalysisFilter,
   ViewFilter,
   Complaint,
+  ComplaintStatus,
 } from '@/types/complaint';
-import {
-  DEFAULT_FILTER,
-  COMPLAINT_TYPES,
-  SOURCE_CHANNELS,
-  STATUS_OPTIONS,
-} from '@/types/complaint';
+import { DEFAULT_FILTER } from '@/types/complaint';
 import { formatDateKey } from '@/utils/helpers';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { filterComplaintsByTimeRange } from '@/utils/stats';
@@ -39,7 +34,6 @@ interface AnalysisDashboardProps {
   onFilterChange: (filter: AnalysisFilter) => void;
   onDrillDown: (viewFilter: ViewFilter) => void;
   complaints: Complaint[];
-  onClose: () => void;
   onExport?: (complaints: Complaint[]) => void;
 }
 
@@ -73,7 +67,6 @@ export default function AnalysisDashboard({
   onFilterChange,
   onDrillDown,
   complaints,
-  onClose,
   onExport,
 }: AnalysisDashboardProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -205,6 +198,17 @@ export default function AnalysisDashboard({
     onDrillDown(viewFilter);
   };
 
+  const handleDrillDownByStatusFlow = (from: ComplaintStatus, to: ComplaintStatus) => {
+    const viewFilter: ViewFilter = {
+      ...DEFAULT_FILTER,
+      statusFlowFrom: from,
+      statusFlowTo: to,
+      receiveTimeStart: filter.receiveTimeStart,
+      receiveTimeEnd: filter.receiveTimeEnd,
+    };
+    onDrillDown(viewFilter);
+  };
+
   const statusCards = [
     {
       key: 'pending',
@@ -293,11 +297,7 @@ export default function AnalysisDashboard({
               <button
                 key={range.label}
                 onClick={() => handleTimeRangeClick(range.days)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                  true
-                    ? 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
-                    : ''
-                }`}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600"
               >
                 {range.label}
               </button>
@@ -600,7 +600,10 @@ export default function AnalysisDashboard({
           </div>
         </div>
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <button
+            onClick={() => handleDrillDownByStatusFlow('pending', 'processing')}
+            className="w-full flex items-center justify-between hover:bg-slate-50 rounded-lg p-1 -mx-1 transition-colors"
+          >
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded">
                 待处理
@@ -610,11 +613,15 @@ export default function AnalysisDashboard({
                 处理中
               </span>
             </div>
-            <span className="text-sm font-semibold text-slate-700">
+            <span className="text-sm font-semibold text-slate-700 flex items-center gap-1">
               {stats.statusFlowStats.pendingToProcessing} 次
+              <ArrowRight className="w-3 h-3" />
             </span>
-          </div>
-          <div className="flex items-center justify-between">
+          </button>
+          <button
+            onClick={() => handleDrillDownByStatusFlow('processing', 'replied')}
+            className="w-full flex items-center justify-between hover:bg-slate-50 rounded-lg p-1 -mx-1 transition-colors"
+          >
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
                 处理中
@@ -624,11 +631,15 @@ export default function AnalysisDashboard({
                 已回复
               </span>
             </div>
-            <span className="text-sm font-semibold text-slate-700">
+            <span className="text-sm font-semibold text-slate-700 flex items-center gap-1">
               {stats.statusFlowStats.processingToReplied} 次
+              <ArrowRight className="w-3 h-3" />
             </span>
-          </div>
-          <div className="flex items-center justify-between">
+          </button>
+          <button
+            onClick={() => handleDrillDownByStatusFlow('pending', 'replied')}
+            className="w-full flex items-center justify-between hover:bg-slate-50 rounded-lg p-1 -mx-1 transition-colors"
+          >
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded">
                 待处理
@@ -638,10 +649,11 @@ export default function AnalysisDashboard({
                 已回复
               </span>
             </div>
-            <span className="text-sm font-semibold text-slate-700">
+            <span className="text-sm font-semibold text-slate-700 flex items-center gap-1">
               {stats.statusFlowStats.pendingToReplied} 次
+              <ArrowRight className="w-3 h-3" />
             </span>
-          </div>
+          </button>
         </div>
       </div>
 
