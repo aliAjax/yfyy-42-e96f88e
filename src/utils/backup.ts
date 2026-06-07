@@ -1,5 +1,6 @@
 import type { Complaint, TimeLimitRule, WorkTimeRule } from '@/types/complaint';
 import type { ReplyTemplate } from '@/types/replyTemplate';
+import type { OperationLog } from '@/types/operationLog';
 import {
   BACKUP_VERSION,
   type BackupFile,
@@ -13,9 +14,11 @@ import {
 } from '@/types/backup';
 import { migrateComplaintData } from './helpers';
 import { getTimeLimitRules, saveTimeLimitRules, getWorkTimeRule, saveWorkTimeRule } from './overdue';
+import { getOperationLogs, saveOperationLogs } from './operationLog';
 
 const COMPLAINT_STORAGE_KEY = 'complaint_records';
 const TEMPLATE_STORAGE_KEY = 'reply_templates';
+const LOG_STORAGE_KEY = 'operation_logs';
 const APP_NAME = '投诉建议登记系统';
 
 function getCurrentComplaints(): Complaint[] {
@@ -51,6 +54,10 @@ function getCurrentWorkTimeRule(): WorkTimeRule {
   return getWorkTimeRule();
 }
 
+function getCurrentOperationLogs(): OperationLog[] {
+  return getOperationLogs();
+}
+
 function getDataSummary(data: BackupDataV1) {
   const totalHandleRecords = data.complaints.reduce(
     (sum, c) => sum + (c.handleRecords?.length || 0),
@@ -68,6 +75,7 @@ function getDataSummary(data: BackupDataV1) {
     totalEscalationRecords,
     timeLimitRuleCount: data.timeLimitRules?.length || 0,
     hasWorkTimeRule: !!data.workTimeRule,
+    operationLogCount: data.operationLogs?.length || 0,
   };
 }
 
@@ -76,12 +84,14 @@ export function createBackup(): BackupFile {
   const replyTemplates = getCurrentTemplates();
   const timeLimitRules = getCurrentTimeLimitRules();
   const workTimeRule = getCurrentWorkTimeRule();
+  const operationLogs = getCurrentOperationLogs();
 
   const data: BackupDataV1 = {
     complaints,
     replyTemplates,
     timeLimitRules,
     workTimeRule,
+    operationLogs,
   };
 
   return {
@@ -529,12 +539,17 @@ export function applyImport(
     let finalTemplates: ReplyTemplate[];
     let finalTimeLimitRules: TimeLimitRule[];
     let finalWorkTimeRule: WorkTimeRule;
+    let finalOperationLogs: OperationLog[];
+
+    const currentLogs = getCurrentOperationLogs();
+    const backupLogs = backupData.operationLogs || [];
 
     if (mode === 'overwrite_all') {
       finalComplaints = backupData.complaints;
       finalTemplates = backupData.replyTemplates;
       finalTimeLimitRules = backupData.timeLimitRules || currentTimeLimitRules;
       finalWorkTimeRule = backupData.workTimeRule || getCurrentWorkTimeRule();
+      finalOperationLogs = backupLogs;
     } else {
       const currentComplaintMap = new Map(currentComplaints.map((c) => [c.id, c]));
       const currentTemplateMap = new Map(currentTemplates.map((t) => [t.id, t]));
@@ -573,12 +588,20 @@ export function applyImport(
         : currentTimeLimitRules;
 
       finalWorkTimeRule = backupData.workTimeRule || getCurrentWorkTimeRule();
+
+      const logIdMap = new Map<string, OperationLog>();
+      currentLogs.forEach((log) => logIdMap.set(log.id, log));
+      backupLogs.forEach((log) => logIdMap.set(log.id, log));
+      finalOperationLogs = Array.from(logIdMap.values()).sort(
+        (a, b) => new Date(b.operatedAt).getTime() - new Date(a.operatedAt).getTime()
+      );
     }
 
     localStorage.setItem(COMPLAINT_STORAGE_KEY, JSON.stringify(finalComplaints));
     localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(finalTemplates));
     saveTimeLimitRules(finalTimeLimitRules);
     saveWorkTimeRule(finalWorkTimeRule);
+    saveOperationLogs(finalOperationLogs);
 
     const ruleMsg = backupData.timeLimitRules
       ? `，${finalTimeLimitRules.length} 条时限规则`
@@ -586,10 +609,13 @@ export function applyImport(
     const workTimeMsg = backupData.workTimeRule
       ? `，工作时间规则`
       : '';
+    const logMsg = backupData.operationLogs
+      ? `，${finalOperationLogs.length} 条操作日志`
+      : '';
 
     return {
       success: true,
-      message: `恢复成功！共 ${finalComplaints.length} 条诉求，${finalTemplates.length} 个模板${ruleMsg}${workTimeMsg}`,
+      message: `恢复成功！共 ${finalComplaints.length} 条诉求，${finalTemplates.length} 个模板${ruleMsg}${workTimeMsg}${logMsg}`,
     };
   } catch (e) {
     console.error('Import failed:', e);

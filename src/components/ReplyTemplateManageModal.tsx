@@ -3,6 +3,7 @@ import { X, Plus, Edit2, Trash2, Save, FileText } from 'lucide-react';
 import { getTemplates, addTemplate, updateTemplate, deleteTemplate } from '@/utils/replyTemplate';
 import type { ReplyTemplate, ReplyTemplateFormData } from '@/types/replyTemplate';
 import { COMPLAINT_TYPES } from '@/types/complaint';
+import { logOperation } from '@/utils/operationLog';
 
 interface ReplyTemplateManageModalProps {
   onClose: () => void;
@@ -54,9 +55,20 @@ export default function ReplyTemplateManageModal({ onClose }: ReplyTemplateManag
   };
 
   const handleDelete = (id: string) => {
+    const template = templates.find((t) => t.id === id);
     if (!confirm('确定要删除这个模板吗？')) return;
     deleteTemplate(id);
     setTemplates(getTemplates());
+    if (template) {
+      logOperation({
+        operationType: 'manage_template',
+        targetType: 'template',
+        targetId: id,
+        targetName: template.title,
+        summary: `删除模板：${template.title}`,
+        details: { type: template.type },
+      });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -64,9 +76,25 @@ export default function ReplyTemplateManageModal({ onClose }: ReplyTemplateManag
     if (!formData.title.trim() || !formData.content.trim()) return;
 
     if (isAdding) {
-      addTemplate(formData);
+      const newTemplate = addTemplate(formData);
+      logOperation({
+        operationType: 'manage_template',
+        targetType: 'template',
+        targetId: newTemplate.id,
+        targetName: formData.title,
+        summary: `新增模板：${formData.title}`,
+        details: { type: formData.type },
+      });
     } else if (editingTemplate) {
       updateTemplate(editingTemplate.id, formData);
+      logOperation({
+        operationType: 'manage_template',
+        targetType: 'template',
+        targetId: editingTemplate.id,
+        targetName: formData.title,
+        summary: `更新模板：${formData.title}`,
+        details: { type: formData.type },
+      });
     }
     setTemplates(getTemplates());
     setIsAdding(false);

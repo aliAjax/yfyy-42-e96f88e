@@ -3,6 +3,7 @@ import { X, Save, RotateCcw, Clock, AlertTriangle, Calendar, Settings, Plus, Tra
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
 import type { TimeLimitRule, WorkTimeRule, HolidayItem, DayOfWeek } from '@/types/complaint';
 import { getTimeLimitRules, saveTimeLimitRules, getDefaultTimeLimitHours, getDefaultWarningHours, getWorkTimeRule, saveWorkTimeRule } from '@/utils/overdue';
+import { logOperation } from '@/utils/operationLog';
 
 interface TimeLimitRuleManageModalProps {
   onClose: () => void;
@@ -176,11 +177,24 @@ export default function TimeLimitRuleManageModal({ onClose, onSave }: TimeLimitR
   };
 
   const handleSaveAll = () => {
+    const actions: string[] = [];
     if (rulesHasChanges) {
       handleSaveRules();
+      actions.push('时限规则');
     }
     if (workTimeHasChanges) {
       handleSaveWorkTime();
+      actions.push('工作时间规则');
+    }
+    if (actions.length > 0) {
+      logOperation({
+        operationType: 'manage_time_limit_rule',
+        targetType: 'time_limit_rule',
+        targetId: 'system',
+        targetName: '时限规则',
+        summary: `更新${actions.join('和')}`,
+        details: { rulesCount: rules.length, hasWorkTimeRule: workTimeRule?.enabled },
+      });
     }
     if (onSave) {
       onSave();

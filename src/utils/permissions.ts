@@ -32,7 +32,8 @@ export type PermissionAction =
   | 'view_all_complaints'
   | 'manage_visit_back'
   | 'view_visit_back'
-  | 'view_merged_complaints';
+  | 'view_merged_complaints'
+  | 'view_operation_logs';
 
 const rolePermissions: Record<UserRole, PermissionAction[]> = {
   registrar: [
@@ -74,6 +75,7 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'manage_visit_back',
     'view_visit_back',
     'view_merged_complaints',
+    'view_operation_logs',
   ],
 };
 
@@ -98,6 +100,7 @@ const permissionLabels: Record<PermissionAction, string> = {
   manage_visit_back: '登记回访',
   view_visit_back: '查看回访信息',
   view_merged_complaints: '查看已合并诉求',
+  view_operation_logs: '查看操作日志',
 };
 
 const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
@@ -115,7 +118,7 @@ const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
   },
   {
     group: '系统管理',
-    permissions: ['manage_templates', 'manage_time_limit_rules', 'manage_handlers', 'view_statistics', 'export_data', 'import_data', 'backup_restore'],
+    permissions: ['manage_templates', 'manage_time_limit_rules', 'manage_handlers', 'view_statistics', 'export_data', 'import_data', 'backup_restore', 'view_operation_logs'],
   },
   {
     group: '其他功能',

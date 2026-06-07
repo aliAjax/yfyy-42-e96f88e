@@ -29,6 +29,7 @@ import {
 } from '@/utils/backup';
 import type { Complaint } from '@/types/complaint';
 import type { ReplyTemplate } from '@/types/replyTemplate';
+import { logOperation } from '@/utils/operationLog';
 
 interface BackupRestoreModalProps {
   onClose: () => void;
@@ -63,6 +64,14 @@ export default function BackupRestoreModal({
   const handleExport = () => {
     try {
       exportBackupToFile();
+      logOperation({
+        operationType: 'backup_data',
+        targetType: 'system',
+        targetId: 'backup',
+        targetName: '数据备份',
+        summary: '导出系统数据备份文件',
+        details: {},
+      });
       showToast('备份文件已导出！');
     } catch {
       showToast('导出失败，请重试', 'error');

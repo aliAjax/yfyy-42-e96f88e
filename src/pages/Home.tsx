@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload, FileText, Lock, Database, Clock } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { BarChart3, X, Upload, FileText, Lock, Database, Clock, ScrollText } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
@@ -10,6 +10,7 @@ import DuplicateGroupModal from '@/components/DuplicateGroupModal';
 import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
 import BackupRestoreModal from '@/components/BackupRestoreModal';
 import TimeLimitRuleManageModal from '@/components/TimeLimitRuleManageModal';
+import OperationLogModal from '@/components/OperationLogModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
 import { calculateDashboardStats } from '@/utils/stats';
@@ -17,6 +18,7 @@ import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
 import { mergeComplaints, getMasterComplaint } from '@/utils/merge';
+import { logOperation as recordOperationLog } from '@/utils/operationLog';
 import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
@@ -35,6 +37,7 @@ export default function Home() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateModalComplaintId, setDuplicateModalComplaintId] = useState<string | null>(null);
   const [showMerged, setShowMerged] = useState(false);
+  const [showOperationLog, setShowOperationLog] = useState(false);
   const [timeLimitRulesVersion, setTimeLimitRulesVersion] = useState(0);
   const [complaintsLoaded, setComplaintsLoaded] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
@@ -57,6 +60,7 @@ export default function Home() {
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const canMerge = hasPermission(currentRole, 'merge_complaint');
   const canViewMerged = hasPermission(currentRole, 'view_merged_complaints');
+  const canViewOperationLogs = hasPermission(currentRole, 'view_operation_logs');
 
   const visibleComplaints = useMemo(() => {
     let result = complaints;
@@ -103,9 +107,20 @@ export default function Home() {
   }, []);
 
   const handleCurrentHandlerChange = (handlerId: string) => {
+    const handler = handlers.find((h) => h.id === handlerId);
+    const oldHandler = handlers.find((h) => h.id === currentHandlerId);
+    if (handler) {
+      logOperation(
+        'switch_handler',
+        'handler',
+        handlerId,
+        handler.name,
+        `从${oldHandler?.name || '未选择'}切换为处理员：${handler.name}`,
+        { fromHandlerId: currentHandlerId, toHandlerId: handlerId }
+      );
+    }
     setCurrentHandlerIdState(handlerId);
     setCurrentHandlerId(handlerId);
-    const handler = handlers.find((h) => h.id === handlerId);
     if (handler) {
       showToast(`已切换为处理员：${handler.name}`, 'success');
     }
@@ -146,7 +161,33 @@ export default function Home() {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 2500);
   };
 
+  const logOperation = (
+    operationType: Parameters<typeof recordOperationLog>['0']['operationType'],
+    targetType: Parameters<typeof recordOperationLog>['0']['targetType'],
+    targetId: string,
+    targetName: string,
+    summary: string,
+    details?: Record<string, unknown>
+  ) => {
+    recordOperationLog({
+      operationType,
+      targetType,
+      targetId,
+      targetName,
+      summary,
+      details,
+    });
+  };
+
   const handleRoleChange = (role: UserRole) => {
+    logOperation(
+      'switch_role',
+      'role',
+      role,
+      ROLE_LABELS[role],
+      `从${ROLE_LABELS[currentRole]}切换为${ROLE_LABELS[role]}`,
+      { fromRole: currentRole, toRole: role }
+    );
     setCurrentRole(role);
     showToast(`已切换为${ROLE_LABELS[role]}角色`, 'success');
   };
@@ -157,8 +198,9 @@ export default function Home() {
       return;
     }
     const now = new Date().toISOString();
+    const newId = generateId();
     const newComplaint: Complaint = {
-      id: generateId(),
+      id: newId,
       ...data,
       status: 'pending',
       handleOpinion: '',
@@ -178,6 +220,14 @@ export default function Home() {
       sources: data.source ? [data.source] : [''],
     };
     setComplaints((prev) => [newComplaint, ...prev]);
+    logOperation(
+      'create_complaint',
+      'complaint',
+      newId,
+      data.name,
+      `新增诉求：${data.name}（${data.type}），来源：${data.source}`,
+      { type: data.type, source: data.source }
+    );
     showToast('诉求登记成功！');
   };
 
@@ -209,6 +259,14 @@ export default function Home() {
     }));
     setComplaints((prev) => [...newComplaints, ...prev]);
     setShowImportModal(false);
+    logOperation(
+      'import_complaints',
+      'complaint',
+      'batch',
+      '批量导入',
+      `批量导入 ${rows.length} 条诉求记录`,
+      { count: rows.length }
+    );
     showToast(`成功导入 ${rows.length} 条诉求！`);
   };
 
@@ -218,6 +276,16 @@ export default function Home() {
       return;
     }
     const result = exportComplaintsToCSV(filteredComplaints);
+    if (result.success) {
+      logOperation(
+        'export_complaints',
+        'complaint',
+        'export',
+        '数据导出',
+        `导出 ${filteredComplaints.length} 条诉求记录`,
+        { count: filteredComplaints.length }
+      );
+    }
     showToast(result.message, result.success ? 'success' : 'error');
   };
 
@@ -259,6 +327,14 @@ export default function Home() {
     }
 
     setShowDuplicateModal(false);
+    logOperation(
+      'merge_complaint',
+      'complaint',
+      masterId,
+      masterComplaint.name,
+      `合并 ${mergedIds.length} 条诉求到主诉求：${masterComplaint.name}`,
+      { mergedCount: mergedIds.length, mergedIds, mergeReason }
+    );
     showToast(`成功合并 ${mergedIds.length} 条诉求`);
   };
 
@@ -296,6 +372,7 @@ export default function Home() {
       return;
     }
     const now = new Date().toISOString();
+    const statusLabel = data.status === 'pending' ? '待处理' : data.status === 'processing' ? '处理中' : '已回复';
     setComplaints((prev) =>
       prev.map((c) => {
         if (c.id !== id) return c;
@@ -331,6 +408,14 @@ export default function Home() {
           handleRecords: newRecords,
         };
       })
+    );
+    logOperation(
+      'handle_complaint',
+      'complaint',
+      id,
+      targetComplaint.name,
+      `处理诉求，状态更新为：${statusLabel}`,
+      { status: data.status, handleOpinion: data.handleOpinion }
     );
     setSelectedComplaint(null);
     showToast('处理记录已保存！');
@@ -379,6 +464,14 @@ export default function Home() {
       };
     });
 
+    logOperation(
+      'escalate_complaint',
+      'complaint',
+      id,
+      targetComplaint.name,
+      `升级诉求，原因：${reason}`,
+      { reason }
+    );
     showToast('诉求已升级！');
   };
 
@@ -387,6 +480,7 @@ export default function Home() {
       showToast('无分派权限', 'error');
       return;
     }
+    const targetComplaint = complaints.find((c) => c.id === id);
     const now = new Date().toISOString();
     const assignmentRecord = {
       id: generateId(),
@@ -423,6 +517,16 @@ export default function Home() {
       };
     });
 
+    if (targetComplaint) {
+      logOperation(
+        'assign_complaint',
+        'complaint',
+        id,
+        targetComplaint.name,
+        `分派给 ${data.assigneeName}`,
+        { assigneeId: data.assigneeId, assigneeName: data.assigneeName, remark: data.remark }
+      );
+    }
     showToast(`已分派给 ${data.assigneeName}`);
   };
 
@@ -545,6 +649,17 @@ export default function Home() {
       };
     });
 
+    if (targetComplaint) {
+      logOperation(
+        'visit_back',
+        'complaint',
+        id,
+        targetComplaint.name,
+        data.reopenCase ? '回访登记，诉求重新进入处理流程' : `回访登记，满意度：${data.satisfaction}`,
+        { satisfaction: data.satisfaction, isReopened: data.reopenCase, visitBackResult: data.visitBackResult }
+      );
+    }
+
     if (data.reopenCase) {
       showToast('回访登记成功，诉求已重新进入处理流程！');
     } else {
@@ -557,7 +672,18 @@ export default function Home() {
       showToast('无删除记录权限', 'error');
       return;
     }
+    const targetComplaint = complaints.find((c) => c.id === id);
     setComplaints((prev) => prev.filter((c) => c.id !== id));
+    if (targetComplaint) {
+      logOperation(
+        'delete_complaint',
+        'complaint',
+        id,
+        targetComplaint.name,
+        `删除诉求：${targetComplaint.name}`,
+        { type: targetComplaint.type, source: targetComplaint.source }
+      );
+    }
     showToast('诉求记录已删除');
   };
 
@@ -625,6 +751,16 @@ export default function Home() {
     }
 
     const skipped = selectedComplaints.length - operableComplaints.length;
+    if (operableComplaints.length > 0) {
+      logOperation(
+        'handle_complaint',
+        'complaint',
+        'batch',
+        '批量处理',
+        `批量更新 ${operableComplaints.length} 条诉求状态为：${data.status}`,
+        { count: operableComplaints.length, status: data.status }
+      );
+    }
     if (skipped > 0) {
       showToast(`成功更新 ${operableComplaints.length} 条，跳过 ${skipped} 条无权限的诉求`, 'success');
     } else {
@@ -683,6 +819,16 @@ export default function Home() {
     }
 
     const skipped = selectedComplaints.length - operableComplaints.length;
+    if (operableComplaints.length > 0) {
+      logOperation(
+        'escalate_complaint',
+        'complaint',
+        'batch',
+        '批量升级',
+        `批量升级 ${operableComplaints.length} 条诉求，原因：${reason}`,
+        { count: operableComplaints.length, reason }
+      );
+    }
     if (skipped > 0) {
       showToast(`成功升级 ${operableComplaints.length} 条，跳过 ${skipped} 条无权限的诉求`, 'success');
     } else {
@@ -702,6 +848,14 @@ export default function Home() {
       setSelectedComplaint(null);
     }
 
+    logOperation(
+      'batch_delete',
+      'complaint',
+      'batch',
+      '批量删除',
+      `批量删除 ${selectedComplaints.length} 条诉求记录`,
+      { count: selectedComplaints.length }
+    );
     showToast(`已删除 ${selectedComplaints.length} 条诉求记录`);
   };
 
@@ -711,6 +865,16 @@ export default function Home() {
       return;
     }
     const result = exportComplaintsToCSV(selectedComplaints);
+    if (result.success) {
+      logOperation(
+        'export_complaints',
+        'complaint',
+        'batch',
+        '批量导出',
+        `批量导出 ${selectedComplaints.length} 条诉求记录`,
+        { count: selectedComplaints.length }
+      );
+    }
     showToast(result.message, result.success ? 'success' : 'error');
   };
 
@@ -726,6 +890,14 @@ export default function Home() {
       }
     }
     setTimeLimitRulesVersion((v) => v + 1);
+    logOperation(
+      'restore_data',
+      'system',
+      'restore',
+      '数据恢复',
+      '数据恢复完成',
+      {}
+    );
     showToast('数据恢复完成！');
   };
 
@@ -876,6 +1048,28 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+
+                <div className="relative group">
+                  <button
+                    onClick={() => canViewOperationLogs && setShowOperationLog(true)}
+                    disabled={!canViewOperationLogs}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                      canViewOperationLogs
+                        ? 'bg-slate-700 hover:bg-slate-800 text-white'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    title={canViewOperationLogs ? '操作日志' : getDisabledReason(currentRole, 'view_operation_logs')}
+                  >
+                    {!canViewOperationLogs && <Lock className="w-3.5 h-3.5" />}
+                    <ScrollText className="w-4 h-4" />
+                    操作日志
+                  </button>
+                  {!canViewOperationLogs && (
+                    <div className="absolute right-0 top-full mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      {getDisabledReason(currentRole, 'view_operation_logs')}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="h-[calc(100vh-220px)]">
@@ -994,6 +1188,12 @@ export default function Home() {
         <TimeLimitRuleManageModal
           onClose={() => setShowTimeLimitManage(false)}
           onSave={handleTimeLimitRulesSave}
+        />
+      )}
+
+      {showOperationLog && (
+        <OperationLogModal
+          onClose={() => setShowOperationLog(false)}
         />
       )}
 
