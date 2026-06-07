@@ -1,4 +1,4 @@
-import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord, AssignmentRecord, VisitBackStatus, VisitBackRecord } from '@/types/complaint';
+import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord, AssignmentRecord, VisitBackStatus, VisitBackRecord, MergeStatus } from '@/types/complaint';
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -65,7 +65,7 @@ type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | '
   visitBackStatus?: VisitBackStatus;
   visitBackRecords?: VisitBackRecord[];
   mergeStatus?: string;
-  mergedRecords?: any[];
+  mergedRecords?: unknown[];
   sources?: string[];
 };
 
@@ -255,7 +255,11 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
 
     const visitBackStatus = getDefaultVisitBackStatus(c);
 
-    const mergeStatus = (c.mergeStatus as any) || 'active';
+    const validMergeStatuses = ['active', 'merged', 'master'] as const;
+    const mergeStatus =
+      c.mergeStatus && validMergeStatuses.includes(c.mergeStatus as typeof validMergeStatuses[number])
+        ? (c.mergeStatus as MergeStatus)
+        : 'active';
     const mergedRecords = c.mergedRecords && Array.isArray(c.mergedRecords) ? c.mergedRecords : [];
     const sources = c.sources && Array.isArray(c.sources) && c.sources.length > 0 ? c.sources : [c.source || ''];
 

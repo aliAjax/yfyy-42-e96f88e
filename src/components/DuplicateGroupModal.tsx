@@ -149,7 +149,7 @@ export default function DuplicateGroupModal({
                   </div>
                 )}
 
-                {allGroupComplaints.map((item, index) => {
+                {allGroupComplaints.map((item) => {
                   const isTarget = item.complaint.id === targetComplaint.id;
                   const isSelected = selectedIds.has(item.complaint.id);
                   const isMerged = item.complaint.mergeStatus === 'merged';

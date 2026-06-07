@@ -25,15 +25,12 @@ interface DetailModalProps {
   timeLimitRulesVersion?: number;
   handlers?: HandlerUser[];
   currentHandlerId?: string;
-  allComplaints?: Complaint[];
   onViewDuplicates?: () => void;
   onViewMaster?: () => void;
-  onMerge?: (masterId: string, mergedIds: string[], reason?: string) => void;
-  canMerge?: boolean;
   canViewMerged?: boolean;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, onVisitBack, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId, allComplaints = [], onViewDuplicates, onViewMaster, onMerge, canMerge: propCanMerge, canViewMerged: propCanViewMerged }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, onVisitBack, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId, onViewDuplicates, onViewMaster, canViewMerged: propCanViewMerged }: DetailModalProps) {
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
   const canUpdateOpinion = hasPermission(currentRole, 'update_handle_opinion');
   const canHandle = canUpdateStatus || canUpdateOpinion;
@@ -44,7 +41,6 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const canManageVisitBack = hasPermission(currentRole, 'manage_visit_back');
   const canViewVisitBack = hasPermission(currentRole, 'view_visit_back');
-  const canMerge = propCanMerge ?? hasPermission(currentRole, 'merge_complaint');
   const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
 
   const handleDisabledReason = getDisabledReason(currentRole, 'update_status');

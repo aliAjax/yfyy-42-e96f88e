@@ -16,8 +16,8 @@ import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
-import { mergeComplaints, getSimilarComplaintsForOne, getMasterComplaint, getActiveComplaints } from '@/utils/merge';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus, DuplicateGroup } from '@/types/complaint';
+import { mergeComplaints, getMasterComplaint } from '@/utils/merge';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
@@ -896,7 +896,6 @@ export default function Home() {
                 onViewDuplicates={canViewMerged ? handleViewDuplicates : undefined}
                 onViewMaster={canViewMerged ? handleViewMaster : undefined}
                 allComplaints={complaints}
-                canMerge={canMerge}
                 canViewMerged={canViewMerged}
               />
             </div>
@@ -918,10 +917,8 @@ export default function Home() {
           timeLimitRulesVersion={timeLimitRulesVersion}
           handlers={handlers}
           currentHandlerId={currentHandlerId}
-          allComplaints={complaints}
           onViewDuplicates={canViewMerged ? () => handleViewDuplicates(selectedComplaint.id) : undefined}
           onViewMaster={canViewMerged ? () => handleViewMaster(selectedComplaint.id) : undefined}
-          canMerge={canMerge}
           canViewMerged={canViewMerged}
         />
       )}

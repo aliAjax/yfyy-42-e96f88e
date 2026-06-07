@@ -20,7 +20,6 @@ interface ComplaintCardProps {
   onViewDuplicates?: (complaintId: string) => void;
   allComplaints?: Complaint[];
   onViewMaster?: (complaintId: string) => void;
-  canMerge?: boolean;
   canViewMerged?: boolean;
 }
 
@@ -36,14 +35,12 @@ export default function ComplaintCard({
   onViewDuplicates,
   allComplaints = [],
   onViewMaster,
-  canMerge: propCanMerge,
   canViewMerged: propCanViewMerged,
 }: ComplaintCardProps) {
   const overdueInfo = calculateOverdueInfo(complaint, now);
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
   const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
-  const canMerge = propCanMerge ?? hasPermission(currentRole, 'merge_complaint');
   const [showDeleteTip, setShowDeleteTip] = useState(false);
 
   const similarCount = allComplaints.length > 0 && complaint.mergeStatus === 'active'

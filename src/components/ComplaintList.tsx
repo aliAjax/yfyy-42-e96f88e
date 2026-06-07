@@ -35,7 +35,6 @@ interface ComplaintListProps {
   showMerged?: boolean;
   onToggleShowMerged?: (show: boolean) => void;
   allComplaints?: Complaint[];
-  canMerge?: boolean;
   canViewMerged?: boolean;
 }
 
@@ -56,11 +55,9 @@ export default function ComplaintList({
   showMerged = false,
   onToggleShowMerged,
   allComplaints,
-  canMerge: propCanMerge,
   canViewMerged: propCanViewMerged,
 }: ComplaintListProps) {
   const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
-  const canMerge = propCanMerge ?? hasPermission(currentRole, 'merge_complaint');
   const canExport = hasPermission(currentRole, 'export_data');
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
@@ -283,7 +280,6 @@ export default function ComplaintList({
               onViewDuplicates={onViewDuplicates}
               allComplaints={allComplaints || visibleComplaints}
               onViewMaster={onViewMaster}
-              canMerge={canMerge}
               canViewMerged={canViewMerged}
             />
           ))
