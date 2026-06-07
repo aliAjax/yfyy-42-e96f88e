@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, Upload, AlertTriangle, CheckCircle, FileText, Copy, ArrowRight, ArrowLeft, Map, Table2 } from 'lucide-react';
-import { parseCSVText, parseCSVHeaders, autoDetectFieldMapping } from '@/utils/csvImport';
+import { parseCSVText, parseCSVHeaders, autoDetectFieldMapping, parseCSVLine } from '@/utils/csvImport';
 import type {
   ImportPreviewResult,
   ParsedImportRow,
@@ -415,7 +415,7 @@ export default function ImportModal({ onClose, onImport, existingComplaints = []
                         .filter((l) => l.length > 0)
                         .slice(1, 4)
                         .map((line, rowIdx) => {
-                          const values = line.split(',').map((v) => v.trim());
+                          const values = parseCSVLine(line);
                           return (
                             <tr key={rowIdx} className="hover:bg-slate-50">
                               <td className="px-2 py-1.5 text-slate-400 font-mono">{rowIdx + 1}</td>
@@ -713,7 +713,7 @@ function TableRow({ row }: { row: ParsedImportRow }) {
         ) : row.duplicateRisk?.hasRisk ? (
           <div
             className="inline-flex items-center gap-1 text-orange-500 cursor-help"
-            title={`疑似重复：与 ${row.duplicateRisk.similarCount} 条现有诉求相似，最高相似度 ${Math.round(row.duplicateRisk.topSimilarity * 100)}%`}
+            title={`疑似重复：与 ${row.duplicateRisk.similarCount} 条现有诉求相似，最高相似度 ${row.duplicateRisk.topSimilarity}%`}
           >
             <Copy className="w-4 h-4" />
           </div>

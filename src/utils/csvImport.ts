@@ -10,7 +10,7 @@ const FIELD_MAPPING_KEYWORDS: Record<ImportFieldKey, string[]> = {
   content: ['具体内容', '内容', 'content', '诉求内容', '详细内容', '描述', '问题描述'],
 };
 
-function parseCSVLine(line: string): string[] {
+export function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
