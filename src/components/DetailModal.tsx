@@ -40,7 +40,6 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const escalateDisabledReason = getDisabledReason(currentRole, 'escalate_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
   const printDisabledReason = getDisabledReason(currentRole, 'print_receipt');
-  const assignDisabledReason = getDisabledReason(currentRole, 'assign_complaint');
 
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({

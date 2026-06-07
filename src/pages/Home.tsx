@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload, FileText, Lock, Database, Clock, Users } from 'lucide-react';
+import { BarChart3, X, Upload, FileText, Lock, Database, Clock } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
@@ -51,8 +51,8 @@ export default function Home() {
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
 
   const visibleComplaints = useMemo(() => {
-    if (!canViewAll && currentHandlerId) {
-      return complaints.filter((c) => c.assigneeId === currentHandlerId);
+    if (!canViewAll) {
+      return currentHandlerId ? complaints.filter((c) => c.assigneeId === currentHandlerId) : [];
     }
     return complaints;
   }, [complaints, canViewAll, currentHandlerId]);
@@ -193,9 +193,26 @@ export default function Home() {
     showToast(result.message, result.success ? 'success' : 'error');
   };
 
+  const canOperateComplaint = (complaint: Complaint) => {
+    if (canViewAll) return true;
+    if (currentRole === 'handler') {
+      return !!currentHandlerId && complaint.assigneeId === currentHandlerId;
+    }
+    return true;
+  };
+
   const handleComplaint = (id: string, data: HandleFormData) => {
     if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
       showToast('无处理权限', 'error');
+      return;
+    }
+    const targetComplaint = complaints.find((c) => c.id === id);
+    if (!targetComplaint) {
+      showToast('诉求不存在', 'error');
+      return;
+    }
+    if (!canOperateComplaint(targetComplaint)) {
+      showToast('您只能处理分派给自己的诉求', 'error');
       return;
     }
     const now = new Date().toISOString();
@@ -242,6 +259,15 @@ export default function Home() {
   const handleEscalate = (id: string, reason: string) => {
     if (!hasPermission(currentRole, 'escalate_complaint')) {
       showToast('无升级处理权限', 'error');
+      return;
+    }
+    const targetComplaint = complaints.find((c) => c.id === id);
+    if (!targetComplaint) {
+      showToast('诉求不存在', 'error');
+      return;
+    }
+    if (!canOperateComplaint(targetComplaint)) {
+      showToast('您只能升级分派给自己的诉求', 'error');
       return;
     }
     const now = new Date().toISOString();

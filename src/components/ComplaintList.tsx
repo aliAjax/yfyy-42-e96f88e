@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, ListFilter, Download, Lock, UserCheck, Users, UserX } from 'lucide-react';
+import { Search, ListFilter, Download, Lock } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import type { Complaint, ComplaintStatus } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
@@ -27,8 +27,8 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
   const [searchQuery, setSearchQuery] = useState('');
 
   const visibleComplaints = useMemo(() => {
-    if (!canViewAll && currentHandlerId) {
-      return complaints.filter((c) => c.assigneeId === currentHandlerId);
+    if (!canViewAll) {
+      return currentHandlerId ? complaints.filter((c) => c.assigneeId === currentHandlerId) : [];
     }
     return complaints;
   }, [complaints, canViewAll, currentHandlerId]);
@@ -63,7 +63,7 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
     ...STATUS_OPTIONS.map((opt) => ({
       key: opt.value as ComplaintStatus,
       label: opt.label,
-      count: complaints.filter((c) => c.status === opt.value).length,
+      count: visibleComplaints.filter((c) => c.status === opt.value).length,
     })),
     { key: 'overdue' as TabType, label: '已超期', count: overdueCount },
     { key: 'warning' as TabType, label: '即将超期', count: warningCount },
