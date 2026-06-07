@@ -405,13 +405,13 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 <button
                   type="button"
                   onClick={() => {
-                    if (!canEscalate) return;
+                    if (!canEscalate || !canHandleAssigned) return;
                     setEscalateReason('');
                     setShowEscalateModal(true);
                   }}
-                  disabled={!canEscalate}
+                  disabled={!canEscalate || !canHandleAssigned}
                   className={`w-full px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                    canEscalate
+                    canEscalate && canHandleAssigned
                       ? 'text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200'
                       : 'text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed'
                   }`}

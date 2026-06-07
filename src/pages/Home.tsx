@@ -48,16 +48,24 @@ export default function Home() {
   const canImport = hasPermission(currentRole, 'import_data');
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const canBackupRestore = hasPermission(currentRole, 'backup_restore');
+  const canViewAll = hasPermission(currentRole, 'view_all_complaints');
+
+  const visibleComplaints = useMemo(() => {
+    if (!canViewAll && currentHandlerId) {
+      return complaints.filter((c) => c.assigneeId === currentHandlerId);
+    }
+    return complaints;
+  }, [complaints, canViewAll, currentHandlerId]);
 
   const dashboardStats = useMemo(
-    () => calculateDashboardStats(complaints, now),
+    () => calculateDashboardStats(visibleComplaints, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [complaints, now, timeLimitRulesVersion]
+    [visibleComplaints, now, timeLimitRulesVersion]
   );
   const overdueCount = useMemo(
-    () => calculateOverdueCount(complaints, now),
+    () => calculateOverdueCount(visibleComplaints, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [complaints, now, timeLimitRulesVersion]
+    [visibleComplaints, now, timeLimitRulesVersion]
   );
 
   useEffect(() => {
@@ -342,9 +350,9 @@ export default function Home() {
   };
 
   const counts: Record<ComplaintStatus, number> = {
-    pending: complaints.filter((c) => c.status === 'pending').length,
-    processing: complaints.filter((c) => c.status === 'processing').length,
-    replied: complaints.filter((c) => c.status === 'replied').length,
+    pending: visibleComplaints.filter((c) => c.status === 'pending').length,
+    processing: visibleComplaints.filter((c) => c.status === 'processing').length,
+    replied: visibleComplaints.filter((c) => c.status === 'replied').length,
   };
 
   return (

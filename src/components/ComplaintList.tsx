@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, ListFilter, Download, Lock, UserCheck, Users, UserX } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import type { Complaint, ComplaintStatus } from '@/types/complaint';
@@ -26,17 +26,24 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
   const [activeTab, setActiveTab] = useState<TabType>(canViewAll ? 'all' : 'my_todo');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const overdueCount = complaints.filter(
+  const visibleComplaints = useMemo(() => {
+    if (!canViewAll && currentHandlerId) {
+      return complaints.filter((c) => c.assigneeId === currentHandlerId);
+    }
+    return complaints;
+  }, [complaints, canViewAll, currentHandlerId]);
+
+  const overdueCount = visibleComplaints.filter(
     (c) => c.status !== 'replied' && calculateOverdueInfo(c, now).isOverdue
   ).length;
-  const warningCount = complaints.filter(
+  const warningCount = visibleComplaints.filter(
     (c) => c.status !== 'replied' && calculateOverdueInfo(c, now).isWarning && !calculateOverdueInfo(c, now).isOverdue
   ).length;
-  const escalatedCount = complaints.filter(
+  const escalatedCount = visibleComplaints.filter(
     (c) => c.escalationRecords && c.escalationRecords.length > 0
   ).length;
 
-  const myTodoCount = complaints.filter(
+  const myTodoCount = visibleComplaints.filter(
     (c) => c.status !== 'replied' && c.assigneeId === currentHandlerId
   ).length;
 
@@ -63,10 +70,10 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
     { key: 'escalated' as TabType, label: '已升级', count: escalatedCount },
   ];
 
-  const filteredComplaints = complaints
+  const filteredComplaints = visibleComplaints
     .filter((c) => {
       if (activeTab === 'my_todo') {
-        return c.status !== 'replied' && c.assigneeId === currentHandlerId;
+        return c.status !== 'replied';
       }
       if (activeTab === 'unassigned') {
         return !c.assigneeId;
@@ -112,7 +119,10 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
             <ListFilter className="w-4 h-4 text-blue-600" />
             诉求列表
           </h2>
-          <p className="text-xs text-slate-500 mt-1">共 {filteredComplaints.length} 条 / 总计 {complaints.length} 条</p>
+          <p className="text-xs text-slate-500 mt-1">
+            共 {filteredComplaints.length} 条
+            {canViewAll && <> / 总计 {complaints.length} 条</>}
+          </p>
         </div>
         <div className="relative group">
           <button

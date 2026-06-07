@@ -170,6 +170,7 @@ export const mockComplaints: Complaint[] = [
       },
     ],
     escalationRecords: [],
+    assignmentRecords: [],
   },
   {
     id: '5',
@@ -194,6 +195,7 @@ export const mockComplaints: Complaint[] = [
       },
     ],
     escalationRecords: [],
+    assignmentRecords: [],
   },
   {
     id: '6',
@@ -276,6 +278,7 @@ export const mockComplaints: Complaint[] = [
       },
     ],
     escalationRecords: [],
+    assignmentRecords: [],
   },
   {
     id: '8',
@@ -307,5 +310,6 @@ export const mockComplaints: Complaint[] = [
       },
     ],
     escalationRecords: [],
+    assignmentRecords: [],
   },
 ];
