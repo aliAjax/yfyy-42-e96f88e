@@ -1,4 +1,4 @@
-import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord } from '@/types/complaint';
+import type { Complaint, HandleRecord, ComplaintStatus, EscalationRecord, AssignmentRecord } from '@/types/complaint';
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
@@ -56,9 +56,12 @@ export function getLast7Days(): { date: string; dateLabel: string }[] {
   return days;
 }
 
-type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords'> & {
+type LegacyComplaint = Omit<Complaint, 'handleRecords' | 'escalationRecords' | 'assignmentRecords'> & {
   handleRecords?: HandleRecord[];
   escalationRecords?: EscalationRecord[];
+  assigneeId?: string;
+  assigneeName?: string;
+  assignmentRecords?: AssignmentRecord[];
 };
 
 function getInitialTime(c: LegacyComplaint): string {
@@ -233,10 +236,16 @@ export function migrateComplaintData(complaints: LegacyComplaint[]): Complaint[]
     const escalationRecords: EscalationRecord[] =
       c.escalationRecords && Array.isArray(c.escalationRecords) ? c.escalationRecords : [];
 
+    const assignmentRecords: AssignmentRecord[] =
+      c.assignmentRecords && Array.isArray(c.assignmentRecords) ? c.assignmentRecords : [];
+
     return {
       ...c,
       handleRecords,
       escalationRecords,
+      assignmentRecords,
+      assigneeId: c.assigneeId,
+      assigneeName: c.assigneeName,
     } as Complaint;
   });
 }

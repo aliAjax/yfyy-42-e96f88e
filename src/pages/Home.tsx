@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart3, X, Upload, FileText, Lock, Database, Clock } from 'lucide-react';
+import { BarChart3, X, Upload, FileText, Lock, Database, Clock, Users } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
@@ -14,7 +14,8 @@ import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helper
 import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord } from '@/types/complaint';
+import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
@@ -31,6 +32,8 @@ export default function Home() {
   const [showTimeLimitManage, setShowTimeLimitManage] = useState(false);
   const [timeLimitRulesVersion, setTimeLimitRulesVersion] = useState(0);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
+  const [handlers, setHandlers] = useState<HandlerUser[]>([]);
+  const [currentHandlerId, setCurrentHandlerIdState] = useState<string>('');
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' }>({
     show: false,
     message: '',
@@ -67,6 +70,26 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(ROLE_STORAGE_KEY, currentRole);
   }, [currentRole]);
+
+  useEffect(() => {
+    const loadedHandlers = getHandlers();
+    setHandlers(loadedHandlers);
+    const currentHandler = getCurrentHandler();
+    if (currentHandler) {
+      setCurrentHandlerIdState(currentHandler.id);
+    } else if (loadedHandlers.length > 0) {
+      setCurrentHandlerIdState(loadedHandlers[0].id);
+    }
+  }, []);
+
+  const handleCurrentHandlerChange = (handlerId: string) => {
+    setCurrentHandlerIdState(handlerId);
+    setCurrentHandlerId(handlerId);
+    const handler = handlers.find((h) => h.id === handlerId);
+    if (handler) {
+      showToast(`已切换为处理员：${handler.name}`, 'success');
+    }
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -124,6 +147,7 @@ export default function Home() {
       updatedAt: now,
       handleRecords: [],
       escalationRecords: [],
+      assignmentRecords: [],
     };
     setComplaints((prev) => [newComplaint, ...prev]);
     showToast('诉求登记成功！');
@@ -145,6 +169,7 @@ export default function Home() {
       updatedAt: now,
       handleRecords: [],
       escalationRecords: [],
+      assignmentRecords: [],
     }));
     setComplaints((prev) => [...newComplaints, ...prev]);
     setShowImportModal(false);
@@ -243,6 +268,50 @@ export default function Home() {
     showToast('诉求已升级！');
   };
 
+  const handleAssign = (id: string, data: AssignmentFormData) => {
+    if (!hasPermission(currentRole, 'assign_complaint')) {
+      showToast('无分派权限', 'error');
+      return;
+    }
+    const now = new Date().toISOString();
+    const assignmentRecord = {
+      id: generateId(),
+      assigneeId: data.assigneeId,
+      assigneeName: data.assigneeName,
+      assignorId: 'admin',
+      assignorName: ROLE_LABELS[currentRole],
+      remark: data.remark,
+      assignedAt: now,
+    };
+
+    setComplaints((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const existingRecords = c.assignmentRecords || [];
+        return {
+          ...c,
+          assigneeId: data.assigneeId,
+          assigneeName: data.assigneeName,
+          updatedAt: now,
+          assignmentRecords: [...existingRecords, assignmentRecord],
+        };
+      })
+    );
+
+    setSelectedComplaint((prev) => {
+      if (!prev || prev.id !== id) return prev;
+      return {
+        ...prev,
+        assigneeId: data.assigneeId,
+        assigneeName: data.assigneeName,
+        updatedAt: now,
+        assignmentRecords: [...(prev.assignmentRecords || []), assignmentRecord],
+      };
+    });
+
+    showToast(`已分派给 ${data.assigneeName}`);
+  };
+
   const handleDelete = (id: string) => {
     if (!hasPermission(currentRole, 'delete_complaint')) {
       showToast('无删除记录权限', 'error');
@@ -285,6 +354,9 @@ export default function Home() {
         overdueCount={overdueCount}
         currentRole={currentRole}
         onRoleChange={handleRoleChange}
+        handlers={handlers}
+        currentHandlerId={currentHandlerId}
+        onHandlerChange={handleCurrentHandlerChange}
       />
 
       <main className="max-w-7xl mx-auto px-6 py-6">
@@ -421,6 +493,7 @@ export default function Home() {
                 now={now}
                 currentRole={currentRole}
                 onDelete={canDelete ? handleDelete : undefined}
+                currentHandlerId={currentHandlerId}
               />
             </div>
           </div>
@@ -434,9 +507,12 @@ export default function Home() {
           onHandle={handleComplaint}
           onEscalate={handleEscalate}
           onDelete={canDelete ? handleDelete : undefined}
+          onAssign={handleAssign}
           now={now}
           currentRole={currentRole}
           timeLimitRulesVersion={timeLimitRulesVersion}
+          handlers={handlers}
+          currentHandlerId={currentHandlerId}
         />
       )}
 

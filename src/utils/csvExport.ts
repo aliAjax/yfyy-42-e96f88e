@@ -9,6 +9,7 @@ const EXPORT_HEADERS = [
   '来源渠道',
   '受理时间',
   '状态',
+  '当前承办人',
   '处理意见',
   '回复时间',
 ] as const;
@@ -36,6 +37,7 @@ function formatExportRow(complaint: Complaint): string[] {
     complaint.source,
     complaint.receiveTime,
     getStatusLabel(complaint.status),
+    complaint.assigneeName || '未分派',
     complaint.handleOpinion || '',
     complaint.replyTime || '',
   ];

@@ -1,4 +1,4 @@
-import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock } from 'lucide-react';
+import { User, Phone, Clock, MessageSquare, AlertTriangle, AlertCircle, Trash2, Lock, UserCheck } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import type { Complaint } from '@/types/complaint';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
@@ -97,13 +97,23 @@ export default function ComplaintCard({ complaint, onClick, now, currentRole, on
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-2" onClick={onClick}>
+      <div className="flex items-center gap-2 mb-2 flex-wrap" onClick={onClick}>
         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700 rounded">
           {complaint.type}
         </span>
         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 rounded">
           {complaint.source}
         </span>
+        {complaint.assigneeName ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-teal-50 text-teal-700 rounded">
+            <UserCheck className="w-3 h-3" />
+            {complaint.assigneeName}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-orange-50 text-orange-700 rounded">
+            待分派
+          </span>
+        )}
       </div>
 
       <div className="text-sm text-slate-600 line-clamp-2 mb-3 flex items-start gap-1.5" onClick={onClick}>

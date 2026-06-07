@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { ClipboardList, AlertTriangle, AlertCircle, User, ChevronDown, Shield } from 'lucide-react';
-import type { ComplaintStatus, OverdueCount } from '@/types/complaint';
+import { ClipboardList, AlertTriangle, AlertCircle, User, ChevronDown, Shield, UserCheck } from 'lucide-react';
+import type { ComplaintStatus, OverdueCount, HandlerUser } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, getRolePermissions, getPermissionLabel } from '@/utils/permissions';
 
@@ -9,11 +9,16 @@ interface HeaderProps {
   overdueCount: OverdueCount;
   currentRole: UserRole;
   onRoleChange: (role: UserRole) => void;
+  handlers?: HandlerUser[];
+  currentHandlerId?: string;
+  onHandlerChange?: (handlerId: string) => void;
 }
 
-export default function Header({ counts, overdueCount, currentRole, onRoleChange }: HeaderProps) {
+export default function Header({ counts, overdueCount, currentRole, onRoleChange, handlers, currentHandlerId, onHandlerChange }: HeaderProps) {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [showHandlerMenu, setShowHandlerMenu] = useState(false);
   const roleMenuRef = useRef<HTMLDivElement>(null);
+  const handlerMenuRef = useRef<HTMLDivElement>(null);
   const total = counts.pending + counts.processing + counts.replied;
 
   const statItems = [
@@ -52,14 +57,17 @@ export default function Header({ counts, overdueCount, currentRole, onRoleChange
       if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) {
         setShowRoleMenu(false);
       }
+      if (handlerMenuRef.current && !handlerMenuRef.current.contains(e.target as Node)) {
+        setShowHandlerMenu(false);
+      }
     };
-    if (showRoleMenu) {
+    if (showRoleMenu || showHandlerMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showRoleMenu]);
+  }, [showRoleMenu, showHandlerMenu]);
 
   return (
     <header className="bg-white border-b border-slate-200">
@@ -102,6 +110,68 @@ export default function Header({ counts, overdueCount, currentRole, onRoleChange
             </div>
 
             <div className="h-8 w-px bg-slate-200 mx-1"></div>
+
+            {currentRole === 'handler' && handlers && handlers.length > 0 && onHandlerChange && (
+              <div className="relative" ref={handlerMenuRef}>
+                <button
+                  onClick={() => setShowHandlerMenu(!showHandlerMenu)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg ring-1 transition-colors text-teal-700 bg-teal-50 ring-teal-200"
+                >
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-teal-100 text-teal-600">
+                    <UserCheck className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-xs opacity-80">当前处理员</div>
+                    <div className="text-sm font-bold">
+                      {handlers.find((h) => h.id === currentHandlerId)?.name || '未选择'}
+                    </div>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showHandlerMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showHandlerMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl ring-1 ring-slate-200 z-50 overflow-hidden">
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                      <div className="text-sm font-semibold text-slate-700">切换处理员</div>
+                      <div className="text-xs text-slate-500 mt-0.5">选择不同处理员身份</div>
+                    </div>
+                    <div className="p-2 max-h-64 overflow-y-auto">
+                      {handlers.map((handler) => (
+                        <button
+                          key={handler.id}
+                          onClick={() => {
+                            onHandlerChange(handler.id);
+                            setShowHandlerMenu(false);
+                          }}
+                          className={`w-full text-left p-3 rounded-lg transition-colors ${
+                            currentHandlerId === handler.id
+                              ? 'bg-teal-50 ring-1 ring-teal-200'
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-100 text-teal-600">
+                              <UserCheck className="w-4.5 h-4.5" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="text-sm font-semibold text-slate-800">
+                                {handler.name}
+                                {currentHandlerId === handler.id && (
+                                  <span className="ml-2 text-xs text-teal-600">当前</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {handler.department}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="relative" ref={roleMenuRef}>
               <button

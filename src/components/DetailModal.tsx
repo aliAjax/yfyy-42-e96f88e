@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
-import type { Complaint, HandleFormData } from '@/types/complaint';
+import type { Complaint, HandleFormData, AssignmentFormData, HandlerUser } from '@/types/complaint';
 import { STATUS_OPTIONS, COMPLAINT_TYPES } from '@/types/complaint';
-import { getCurrentDateTime, formatDateInput } from '@/utils/helpers';
+import { getCurrentDateTime, formatDateInput, formatDateTime } from '@/utils/helpers';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
 import { getTemplatesByType, getTemplates } from '@/utils/replyTemplate';
 import type { ReplyTemplate } from '@/types/replyTemplate';
@@ -18,23 +18,29 @@ interface DetailModalProps {
   onHandle: (id: string, data: HandleFormData) => void;
   onEscalate: (id: string, reason: string) => void;
   onDelete?: (id: string) => void;
+  onAssign?: (id: string, data: AssignmentFormData) => void;
   now?: Date;
   currentRole: UserRole;
   timeLimitRulesVersion?: number;
+  handlers?: HandlerUser[];
+  currentHandlerId?: string;
 }
 
-export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, now, currentRole, timeLimitRulesVersion }: DetailModalProps) {
+export default function DetailModal({ complaint, onClose, onHandle, onEscalate, onDelete, onAssign, now, currentRole, timeLimitRulesVersion, handlers = [], currentHandlerId }: DetailModalProps) {
   const canUpdateStatus = hasPermission(currentRole, 'update_status');
   const canUpdateOpinion = hasPermission(currentRole, 'update_handle_opinion');
   const canHandle = canUpdateStatus || canUpdateOpinion;
   const canEscalate = hasPermission(currentRole, 'escalate_complaint');
   const canDelete = hasPermission(currentRole, 'delete_complaint');
   const canPrint = hasPermission(currentRole, 'print_receipt');
+  const canAssign = hasPermission(currentRole, 'assign_complaint');
+  const canViewAll = hasPermission(currentRole, 'view_all_complaints');
 
   const handleDisabledReason = getDisabledReason(currentRole, 'update_status');
   const escalateDisabledReason = getDisabledReason(currentRole, 'escalate_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
   const printDisabledReason = getDisabledReason(currentRole, 'print_receipt');
+  const assignDisabledReason = getDisabledReason(currentRole, 'assign_complaint');
 
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({
@@ -46,7 +52,22 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const [templateFilterType, setTemplateFilterType] = useState<string>('all');
   const [showEscalateModal, setShowEscalateModal] = useState(false);
   const [escalateReason, setEscalateReason] = useState('');
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignData, setAssignData] = useState<AssignmentFormData>({
+    assigneeId: '',
+    assigneeName: '',
+    remark: '',
+  });
   const templatePanelRef = useRef<HTMLDivElement>(null);
+
+  const canHandleAssigned = useMemo(() => {
+    if (!complaint) return false;
+    if (canViewAll) return true;
+    if (currentRole === 'handler') {
+      return complaint.assigneeId === currentHandlerId;
+    }
+    return canHandle;
+  }, [complaint, canViewAll, currentRole, currentHandlerId, canHandle]);
 
   const overdueInfo = useMemo(() => {
     if (!complaint) return null;
@@ -111,7 +132,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canHandle) return;
+    if (!canHandle || !canHandleAssigned) return;
     onHandle(complaint.id, handleData);
   };
 
@@ -238,6 +259,20 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   <span className="text-slate-500">处理时限：</span>
                   <span className="text-slate-900 font-medium">{formatHours(overdueInfo?.timeLimitHours || 0)}</span>
                 </div>
+                <div>
+                  <span className="text-slate-500">当前承办人：</span>
+                  {complaint.assigneeName ? (
+                    <span className="text-green-600 font-medium flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      {complaint.assigneeName}
+                    </span>
+                  ) : (
+                    <span className="text-orange-500 font-medium flex items-center gap-1">
+                      <UserPlus className="w-3.5 h-3.5" />
+                      待分派
+                    </span>
+                  )}
+                </div>
                 {complaint.status !== 'replied' && (
                   <>
                     <div>
@@ -302,6 +337,69 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
               </div>
             )}
 
+            {complaint.assignmentRecords && complaint.assignmentRecords.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-cyan-600" />
+                  分派历史
+                </h4>
+                <div className="space-y-2">
+                  {complaint.assignmentRecords.map((record, index) => (
+                    <div
+                      key={record.id}
+                      className="bg-cyan-50 border border-cyan-200 rounded-lg p-3"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-cyan-700">
+                          第 {index + 1} 次分派
+                        </span>
+                        <span className="text-xs text-cyan-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatDateTime(new Date(record.assignedAt))}
+                        </span>
+                      </div>
+                      <div className="text-sm text-slate-700 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 text-xs">承办人：</span>
+                          <span className="font-medium text-cyan-700">{record.assigneeName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 text-xs">分派人：</span>
+                          <span className="text-slate-600">{record.assignorName}</span>
+                        </div>
+                        {record.remark && (
+                          <div className="pt-1 mt-1 border-t border-cyan-100">
+                            <span className="text-slate-500 text-xs">备注：</span>
+                            <span className="text-slate-600">{record.remark}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {complaint.status !== 'replied' && canAssign && (
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignData({
+                      assigneeId: complaint.assigneeId || '',
+                      assigneeName: complaint.assigneeName || '',
+                      remark: '',
+                    });
+                    setShowAssignModal(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-sm font-medium border rounded-lg transition-colors flex items-center justify-center gap-2 text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border-cyan-200"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {complaint.assigneeName ? '更改承办人' : '分派承办人'}
+                </button>
+              </div>
+            )}
+
             {complaint.status !== 'replied' && (
               <div className="relative group">
                 <button
@@ -337,21 +435,29 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   <Send className="w-4 h-4 text-blue-600" />
                   处理操作
                 </h4>
-                {!canHandle && (
+                {!canHandleAssigned && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-md ring-1 ring-amber-200">
                     <Lock className="w-3 h-3" />
-                    无处理权限
+                    {currentRole === 'handler' && complaint?.assigneeId !== currentHandlerId ? '非您承办' : '无处理权限'}
                   </span>
                 )}
               </div>
 
-              {!canHandle && (
+              {!canHandleAssigned && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="text-xs text-amber-800">
-                      <p className="font-medium">处理功能已禁用</p>
-                      <p className="mt-0.5 opacity-80">{handleDisabledReason}</p>
+                      <p className="font-medium">
+                        {currentRole === 'handler' && complaint?.assigneeId !== currentHandlerId
+                          ? '该诉求未分派给您'
+                          : '处理功能已禁用'}
+                      </p>
+                      <p className="mt-0.5 opacity-80">
+                        {currentRole === 'handler' && complaint?.assigneeId !== currentHandlerId
+                          ? '您只能处理分派给您的诉求'
+                          : handleDisabledReason}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -367,7 +473,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                       key={opt.value}
                       type="button"
                       onClick={() => handleStatusChange(opt.value)}
-                      disabled={!canUpdateStatus}
+                      disabled={!canUpdateStatus || !canHandleAssigned}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
                         handleData.status === opt.value
                           ? opt.color === 'red'
@@ -375,7 +481,7 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                             : opt.color === 'blue'
                             ? 'bg-blue-50 border-blue-300 text-blue-700'
                             : 'bg-green-50 border-green-300 text-green-700'
-                          : canUpdateStatus
+                          : canUpdateStatus && canHandleAssigned
                           ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
                           : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
                       }`}
@@ -393,10 +499,10 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   </label>
                   <button
                     type="button"
-                    onClick={() => canUpdateOpinion && setShowTemplatePanel(!showTemplatePanel)}
-                    disabled={!canUpdateOpinion}
+                    onClick={() => canUpdateOpinion && canHandleAssigned && setShowTemplatePanel(!showTemplatePanel)}
+                    disabled={!canUpdateOpinion || !canHandleAssigned}
                     className={`flex items-center gap-1 text-xs font-medium transition-colors ${
-                      canUpdateOpinion
+                      canUpdateOpinion && canHandleAssigned
                         ? 'text-blue-600 hover:text-blue-700'
                         : 'text-slate-400 cursor-not-allowed'
                     }`}
@@ -409,19 +515,19 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 <textarea
                   value={handleData.handleOpinion}
                   onChange={(e) =>
-                    canUpdateOpinion && setHandleData((prev) => ({ ...prev, handleOpinion: e.target.value }))
+                    canUpdateOpinion && canHandleAssigned && setHandleData((prev) => ({ ...prev, handleOpinion: e.target.value }))
                   }
-                  placeholder={canUpdateOpinion ? '请输入处理意见和回复内容...' : '无权限填写处理意见'}
+                  placeholder={canUpdateOpinion && canHandleAssigned ? '请输入处理意见和回复内容...' : '无权限填写处理意见'}
                   rows={4}
-                  disabled={!canUpdateOpinion}
+                  disabled={!canUpdateOpinion || !canHandleAssigned}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${
-                    canUpdateOpinion
+                    canUpdateOpinion && canHandleAssigned
                       ? 'border-slate-300'
                       : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
                   }`}
                 />
 
-                {showTemplatePanel && canUpdateOpinion && (
+                {showTemplatePanel && canUpdateOpinion && canHandleAssigned && (
                   <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
                     <div className="flex border-b border-slate-100 overflow-x-auto">
                       <button
@@ -490,16 +596,16 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                   type="datetime-local"
                   value={handleData.replyTime ? formatDateInput(new Date(handleData.replyTime.replace(' ', 'T'))) : ''}
                   onChange={(e) => {
-                    if (!canUpdateStatus) return;
+                    if (!canUpdateStatus || !canHandleAssigned) return;
                     const val = e.target.value;
                     setHandleData((prev) => ({
                       ...prev,
                       replyTime: val ? val.replace('T', ' ') : '',
                     }));
                   }}
-                  disabled={!canUpdateStatus}
+                  disabled={!canUpdateStatus || !canHandleAssigned}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                    canUpdateStatus
+                    canUpdateStatus && canHandleAssigned
                       ? 'border-slate-300'
                       : 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
                   }`}
@@ -516,9 +622,9 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 </button>
                 <button
                   type="submit"
-                  disabled={!canHandle}
+                  disabled={!canHandle || !canHandleAssigned}
                   className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                    canHandle
+                    canHandle && canHandleAssigned
                       ? 'text-white bg-blue-600 hover:bg-blue-700'
                       : 'text-slate-400 bg-slate-200 cursor-not-allowed'
                   }`}
@@ -599,6 +705,107 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
                 >
                   <TrendingUp className="w-4 h-4" />
                   确认升级
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAssignModal && complaint && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAssignModal(false)}
+          ></div>
+
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-cyan-600" />
+                {complaint.assigneeName ? '更改承办人' : '分派承办人'}
+              </h3>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                <p className="text-sm text-cyan-700">
+                  {complaint.assigneeName
+                    ? `当前承办人：${complaint.assigneeName}，请选择新的承办人。`
+                    : '该诉求尚未分派承办人，请选择一位处理员负责此诉求。'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  选择承办人 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={assignData.assigneeId}
+                  onChange={(e) => {
+                    const handler = handlers.find((h) => h.id === e.target.value);
+                    setAssignData({
+                      ...assignData,
+                      assigneeId: e.target.value,
+                      assigneeName: handler?.name || '',
+                    });
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors"
+                >
+                  <option value="">请选择承办人</option>
+                  {handlers.map((handler) => (
+                    <option key={handler.id} value={handler.id}>
+                      {handler.name}
+                      {handler.department ? `（${handler.department}）` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  分派备注
+                </label>
+                <textarea
+                  value={assignData.remark}
+                  onChange={(e) => setAssignData((prev) => ({ ...prev, remark: e.target.value }))}
+                  placeholder="请输入分派备注（可选）..."
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (assignData.assigneeId && onAssign) {
+                      onAssign(complaint.id, {
+                        assigneeId: assignData.assigneeId,
+                        assigneeName: assignData.assigneeName,
+                        remark: assignData.remark,
+                      });
+                      setShowAssignModal(false);
+                    }
+                  }}
+                  disabled={!assignData.assigneeId}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-300 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  确认分派
                 </button>
               </div>
             </div>

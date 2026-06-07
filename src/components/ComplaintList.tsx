@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ListFilter, Download, Lock } from 'lucide-react';
+import { Search, ListFilter, Download, Lock, UserCheck, Users, UserX } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
 import type { Complaint, ComplaintStatus } from '@/types/complaint';
 import { STATUS_OPTIONS } from '@/types/complaint';
@@ -14,14 +14,16 @@ interface ComplaintListProps {
   now?: Date;
   currentRole: UserRole;
   onDelete?: (id: string) => void;
+  currentHandlerId?: string;
 }
 
-type TabType = 'all' | ComplaintStatus | 'overdue' | 'warning' | 'escalated';
+type TabType = 'all' | ComplaintStatus | 'overdue' | 'warning' | 'escalated' | 'my_todo' | 'unassigned' | 'assigned';
 
-export default function ComplaintList({ complaints, onCardClick, onExport, now, currentRole, onDelete }: ComplaintListProps) {
+export default function ComplaintList({ complaints, onCardClick, onExport, now, currentRole, onDelete, currentHandlerId }: ComplaintListProps) {
   const canExport = hasPermission(currentRole, 'export_data');
+  const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const exportDisabledReason = getDisabledReason(currentRole, 'export_data');
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [activeTab, setActiveTab] = useState<TabType>(canViewAll ? 'all' : 'my_todo');
   const [searchQuery, setSearchQuery] = useState('');
 
   const overdueCount = complaints.filter(
@@ -34,20 +36,44 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
     (c) => c.escalationRecords && c.escalationRecords.length > 0
   ).length;
 
+  const myTodoCount = complaints.filter(
+    (c) => c.status !== 'replied' && c.assigneeId === currentHandlerId
+  ).length;
+
+  const unassignedCount = complaints.filter(
+    (c) => !c.assigneeId
+  ).length;
+
+  const assignedCount = complaints.filter(
+    (c) => !!c.assigneeId
+  ).length;
+
   const tabs: { key: TabType; label: string; count: number; icon?: string }[] = [
-    { key: 'all', label: '全部', count: complaints.length },
+    ...(canViewAll ? [{ key: 'all' as TabType, label: '全部', count: complaints.length }] : []),
+    { key: 'my_todo' as TabType, label: '我的待办', count: myTodoCount },
+    ...(canViewAll ? [{ key: 'unassigned' as TabType, label: '未分派', count: unassignedCount }] : []),
+    ...(canViewAll ? [{ key: 'assigned' as TabType, label: '已分派', count: assignedCount }] : []),
     ...STATUS_OPTIONS.map((opt) => ({
       key: opt.value as ComplaintStatus,
       label: opt.label,
       count: complaints.filter((c) => c.status === opt.value).length,
     })),
-    { key: 'overdue', label: '已超期', count: overdueCount },
-    { key: 'warning', label: '即将超期', count: warningCount },
-    { key: 'escalated', label: '已升级', count: escalatedCount },
+    { key: 'overdue' as TabType, label: '已超期', count: overdueCount },
+    { key: 'warning' as TabType, label: '即将超期', count: warningCount },
+    { key: 'escalated' as TabType, label: '已升级', count: escalatedCount },
   ];
 
   const filteredComplaints = complaints
     .filter((c) => {
+      if (activeTab === 'my_todo') {
+        return c.status !== 'replied' && c.assigneeId === currentHandlerId;
+      }
+      if (activeTab === 'unassigned') {
+        return !c.assigneeId;
+      }
+      if (activeTab === 'assigned') {
+        return !!c.assigneeId;
+      }
       if (activeTab === 'overdue') {
         return c.status !== 'replied' && calculateOverdueInfo(c, now).isOverdue;
       }
@@ -64,7 +90,8 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
         return (
           c.name.toLowerCase().includes(q) ||
           c.content.toLowerCase().includes(q) ||
-          c.phone.includes(q)
+          c.phone.includes(q) ||
+          (c.assigneeName && c.assigneeName.toLowerCase().includes(q))
         );
       }
       return true;
@@ -126,11 +153,17 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
             const isOverdueTab = tab.key === 'overdue';
             const isWarningTab = tab.key === 'warning';
             const isEscalatedTab = tab.key === 'escalated';
+            const isMyTodoTab = tab.key === 'my_todo';
+            const isUnassignedTab = tab.key === 'unassigned';
+            const isAssignedTab = tab.key === 'assigned';
             
             const getActiveClass = () => {
               if (isOverdueTab) return 'bg-white text-red-600 shadow-sm';
               if (isWarningTab) return 'bg-white text-amber-600 shadow-sm';
               if (isEscalatedTab) return 'bg-white text-purple-600 shadow-sm';
+              if (isMyTodoTab) return 'bg-white text-green-600 shadow-sm';
+              if (isUnassignedTab) return 'bg-white text-orange-600 shadow-sm';
+              if (isAssignedTab) return 'bg-white text-cyan-600 shadow-sm';
               return 'bg-white text-blue-600 shadow-sm';
             };
             
@@ -138,6 +171,9 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
               if (isOverdueTab) return 'text-red-500 hover:text-red-700';
               if (isWarningTab) return 'text-amber-500 hover:text-amber-700';
               if (isEscalatedTab) return 'text-purple-500 hover:text-purple-700';
+              if (isMyTodoTab) return 'text-green-500 hover:text-green-700';
+              if (isUnassignedTab) return 'text-orange-500 hover:text-orange-700';
+              if (isAssignedTab) return 'text-cyan-500 hover:text-cyan-700';
               return 'text-slate-600 hover:text-slate-800';
             };
             
@@ -145,6 +181,9 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
               if (isOverdueTab) return 'bg-red-100 text-red-600';
               if (isWarningTab) return 'bg-amber-100 text-amber-600';
               if (isEscalatedTab) return 'bg-purple-100 text-purple-600';
+              if (isMyTodoTab) return 'bg-green-100 text-green-600';
+              if (isUnassignedTab) return 'bg-orange-100 text-orange-600';
+              if (isAssignedTab) return 'bg-cyan-100 text-cyan-600';
               return 'bg-blue-100 text-blue-600';
             };
             
@@ -152,6 +191,9 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
               if (isOverdueTab) return 'bg-red-200/50 text-red-600';
               if (isWarningTab) return 'bg-amber-200/50 text-amber-600';
               if (isEscalatedTab) return 'bg-purple-200/50 text-purple-600';
+              if (isMyTodoTab) return 'bg-green-200/50 text-green-600';
+              if (isUnassignedTab) return 'bg-orange-200/50 text-orange-600';
+              if (isAssignedTab) return 'bg-cyan-200/50 text-cyan-600';
               return 'bg-slate-200 text-slate-600';
             };
             

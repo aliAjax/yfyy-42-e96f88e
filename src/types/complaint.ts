@@ -41,6 +41,26 @@ export interface HandleRecord {
   handleOpinion: string;
   replyTime: string;
   operatedAt: string;
+  operatorId?: string;
+  operatorName?: string;
+}
+
+export interface AssignmentRecord {
+  id: string;
+  assigneeId: string;
+  assigneeName: string;
+  assignorId: string;
+  assignorName: string;
+  remark?: string;
+  assignedAt: string;
+}
+
+export interface HandlerUser {
+  id: string;
+  name: string;
+  phone?: string;
+  department?: string;
+  createdAt: string;
 }
 
 export interface Complaint {
@@ -58,9 +78,18 @@ export interface Complaint {
   updatedAt: string;
   handleRecords: HandleRecord[];
   escalationRecords: EscalationRecord[];
+  assigneeId?: string;
+  assigneeName?: string;
+  assignmentRecords: AssignmentRecord[];
 }
 
-export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords' | 'escalationRecords'>;
+export type ComplaintFormData = Omit<Complaint, 'id' | 'status' | 'handleOpinion' | 'replyTime' | 'createdAt' | 'updatedAt' | 'handleRecords' | 'escalationRecords' | 'assigneeId' | 'assigneeName' | 'assignmentRecords'>;
+
+export type AssignmentFormData = {
+  assigneeId: string;
+  assigneeName: string;
+  remark?: string;
+};
 
 export type HandleFormData = {
   status: ComplaintStatus;

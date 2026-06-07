@@ -25,13 +25,17 @@ export type PermissionAction =
   | 'export_data'
   | 'import_data'
   | 'print_receipt'
-  | 'backup_restore';
+  | 'backup_restore'
+  | 'assign_complaint'
+  | 'manage_handlers'
+  | 'view_all_complaints';
 
 const rolePermissions: Record<UserRole, PermissionAction[]> = {
   registrar: [
     'view_complaint',
     'create_complaint',
     'print_receipt',
+    'view_all_complaints',
   ],
   handler: [
     'view_complaint',
@@ -54,6 +58,9 @@ const rolePermissions: Record<UserRole, PermissionAction[]> = {
     'import_data',
     'print_receipt',
     'backup_restore',
+    'assign_complaint',
+    'manage_handlers',
+    'view_all_complaints',
   ],
 };
 
@@ -71,20 +78,23 @@ const permissionLabels: Record<PermissionAction, string> = {
   import_data: '批量导入',
   print_receipt: '打印回执',
   backup_restore: '备份与恢复',
+  assign_complaint: '分派诉求',
+  manage_handlers: '管理处理员',
+  view_all_complaints: '查看所有诉求',
 };
 
 const permissionGroups: { group: string; permissions: PermissionAction[] }[] = [
   {
     group: '诉求管理',
-    permissions: ['view_complaint', 'create_complaint', 'delete_complaint'],
+    permissions: ['view_complaint', 'create_complaint', 'delete_complaint', 'view_all_complaints'],
   },
   {
     group: '处理操作',
-    permissions: ['update_status', 'update_handle_opinion', 'escalate_complaint'],
+    permissions: ['update_status', 'update_handle_opinion', 'escalate_complaint', 'assign_complaint'],
   },
   {
     group: '系统管理',
-    permissions: ['manage_templates', 'manage_time_limit_rules', 'view_statistics', 'export_data', 'import_data', 'backup_restore'],
+    permissions: ['manage_templates', 'manage_time_limit_rules', 'manage_handlers', 'view_statistics', 'export_data', 'import_data', 'backup_restore'],
   },
   {
     group: '其他功能',
