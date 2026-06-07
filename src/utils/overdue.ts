@@ -1,8 +1,9 @@
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
-import type { Complaint, TimeLimitRule, OverdueInfo, OverdueLevel } from '@/types/complaint';
+import type { Complaint, TimeLimitRule, OverdueInfo, OverdueLevel, WorkTimeRule, WorkDayConfig, HolidayItem, DayOfWeek } from '@/types/complaint';
 import { formatDateTime } from './helpers';
 
 const STORAGE_KEY = 'time_limit_rules';
+const WORK_TIME_RULE_STORAGE_KEY = 'work_time_rule';
 
 const DEFAULT_RULES: TimeLimitRule[] = [
   { id: 'r1', type: '投诉', source: '来电', timeLimitHours: 24, warningHours: 12 },
@@ -51,7 +52,12 @@ export function getTimeLimitRules(): TimeLimitRule[] {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      const migrated = parsed.map((rule: TimeLimitRule) => ({
+        ...rule,
+        useWorkTime: rule.useWorkTime ?? false,
+      }));
+      return migrated;
     } catch {
       return DEFAULT_RULES;
     }
@@ -91,20 +97,45 @@ export function calculateOverdueInfo(complaint: Complaint, now?: Date): OverdueI
     };
   }
 
+  const rules = getTimeLimitRules();
+  const rule = rules.find((r) => r.type === complaint.type && r.source === complaint.source);
   const { timeLimitHours, warningHours } = getTimeLimitByTypeAndSource(complaint.type, complaint.source);
+  const workTimeRule = getWorkTimeRule();
+
+  const useWorkTime = workTimeRule.enabled && rule?.useWorkTime;
+
   const receiveTime = new Date(complaint.receiveTime.replace(' ', 'T'));
-  const deadline = new Date(receiveTime.getTime() + timeLimitHours * 60 * 60 * 1000);
-  const diffMs = deadline.getTime() - currentTime.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
+  let deadline: Date;
+  let remainingHours: number;
+  let overdueHours: number;
+
+  if (useWorkTime) {
+    deadline = addWorkHours(receiveTime, timeLimitHours, workTimeRule);
+    const elapsedWorkHours = calculateWorkHoursBetween(receiveTime, currentTime, workTimeRule);
+    const diffWorkHours = timeLimitHours - elapsedWorkHours;
+    if (diffWorkHours >= 0) {
+      remainingHours = Math.round(diffWorkHours * 10) / 10;
+      overdueHours = 0;
+    } else {
+      remainingHours = 0;
+      overdueHours = Math.round(-diffWorkHours * 10) / 10;
+    }
+  } else {
+    deadline = new Date(receiveTime.getTime() + timeLimitHours * 60 * 60 * 1000);
+    const diffMs = deadline.getTime() - currentTime.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    remainingHours = Math.max(0, Math.round(diffHours * 10) / 10);
+    overdueHours = Math.max(0, Math.round(-diffHours * 10) / 10);
+  }
 
   let level: OverdueLevel = 'normal';
   let isOverdue = false;
   let isWarning = false;
 
-  if (diffHours <= 0) {
+  if (remainingHours <= 0 && overdueHours > 0) {
     level = 'overdue';
     isOverdue = true;
-  } else if (diffHours <= warningHours) {
+  } else if (remainingHours <= warningHours) {
     level = 'warning';
     isWarning = true;
   }
@@ -113,8 +144,8 @@ export function calculateOverdueInfo(complaint: Complaint, now?: Date): OverdueI
     isOverdue,
     isWarning,
     level,
-    remainingHours: Math.max(0, Math.round(diffHours * 10) / 10),
-    overdueHours: Math.max(0, Math.round(-diffHours * 10) / 10),
+    remainingHours,
+    overdueHours,
     timeLimitHours,
     deadline: formatDateTime(deadline),
   };
@@ -177,4 +208,236 @@ export function formatHours(hours: number): string {
     return `${wholeHours} 小时`;
   }
   return `${hours.toFixed(1)} 小时`;
+}
+
+const DEFAULT_WORK_DAYS: WorkDayConfig[] = [
+  { dayOfWeek: 1, enabled: true, slots: [{ startTime: '09:00', endTime: '12:00' }, { startTime: '13:30', endTime: '17:30' }] },
+  { dayOfWeek: 2, enabled: true, slots: [{ startTime: '09:00', endTime: '12:00' }, { startTime: '13:30', endTime: '17:30' }] },
+  { dayOfWeek: 3, enabled: true, slots: [{ startTime: '09:00', endTime: '12:00' }, { startTime: '13:30', endTime: '17:30' }] },
+  { dayOfWeek: 4, enabled: true, slots: [{ startTime: '09:00', endTime: '12:00' }, { startTime: '13:30', endTime: '17:30' }] },
+  { dayOfWeek: 5, enabled: true, slots: [{ startTime: '09:00', endTime: '12:00' }, { startTime: '13:30', endTime: '17:30' }] },
+  { dayOfWeek: 6, enabled: false, slots: [] },
+  { dayOfWeek: 0, enabled: false, slots: [] },
+];
+
+const DEFAULT_HOLIDAYS: HolidayItem[] = [];
+
+const DEFAULT_WORK_TIME_RULE: WorkTimeRule = {
+  enabled: false,
+  workDays: DEFAULT_WORK_DAYS,
+  holidays: DEFAULT_HOLIDAYS,
+};
+
+export function getWorkTimeRule(): WorkTimeRule {
+  const stored = localStorage.getItem(WORK_TIME_RULE_STORAGE_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return DEFAULT_WORK_TIME_RULE;
+    }
+  }
+  return DEFAULT_WORK_TIME_RULE;
+}
+
+export function saveWorkTimeRule(rule: WorkTimeRule): void {
+  localStorage.setItem(WORK_TIME_RULE_STORAGE_KEY, JSON.stringify(rule));
+}
+
+function formatDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isHoliday(date: Date, holidays: HolidayItem[]): boolean {
+  const dateKey = formatDateKey(date);
+  return holidays.some((h) => h.date === dateKey);
+}
+
+function isWorkDay(date: Date, workDays: WorkDayConfig[], holidays: HolidayItem[]): boolean {
+  if (isHoliday(date, holidays)) return false;
+  const dayOfWeek = date.getDay() as DayOfWeek;
+  const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
+  return workDay?.enabled || false;
+}
+
+function parseTime(timeStr: string): { hours: number; minutes: number } {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return { hours, minutes };
+}
+
+function getDayWorkSeconds(workDay: WorkDayConfig): number {
+  if (!workDay.enabled || workDay.slots.length === 0) return 0;
+  let totalSeconds = 0;
+  for (const slot of workDay.slots) {
+    const start = parseTime(slot.startTime);
+    const end = parseTime(slot.endTime);
+    const startMinutes = start.hours * 60 + start.minutes;
+    const endMinutes = end.hours * 60 + end.minutes;
+    totalSeconds += (endMinutes - startMinutes) * 60;
+  }
+  return totalSeconds;
+}
+
+function getSecondsSinceMidnight(date: Date): number {
+  return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+}
+
+function getWorkSecondsPassedInDay(date: Date, workDay: WorkDayConfig): number {
+  if (!workDay.enabled || workDay.slots.length === 0) return 0;
+  const currentSeconds = getSecondsSinceMidnight(date);
+  let passedSeconds = 0;
+  for (const slot of workDay.slots) {
+    const start = parseTime(slot.startTime);
+    const end = parseTime(slot.endTime);
+    const startSeconds = start.hours * 3600 + start.minutes * 60;
+    const endSeconds = end.hours * 3600 + end.minutes * 60;
+    if (currentSeconds >= endSeconds) {
+      passedSeconds += endSeconds - startSeconds;
+    } else if (currentSeconds > startSeconds) {
+      passedSeconds += currentSeconds - startSeconds;
+    }
+  }
+  return passedSeconds;
+}
+
+function getWorkSecondsRemainingInDay(date: Date, workDay: WorkDayConfig): number {
+  if (!workDay.enabled || workDay.slots.length === 0) return 0;
+  const currentSeconds = getSecondsSinceMidnight(date);
+  let remainingSeconds = 0;
+  for (const slot of workDay.slots) {
+    const start = parseTime(slot.startTime);
+    const end = parseTime(slot.endTime);
+    const startSeconds = start.hours * 3600 + start.minutes * 60;
+    const endSeconds = end.hours * 3600 + end.minutes * 60;
+    if (currentSeconds <= startSeconds) {
+      remainingSeconds += endSeconds - startSeconds;
+    } else if (currentSeconds < endSeconds) {
+      remainingSeconds += endSeconds - currentSeconds;
+    }
+  }
+  return remainingSeconds;
+}
+
+export function addWorkHours(startDate: Date, workHours: number, workTimeRule: WorkTimeRule): Date {
+  const { workDays, holidays } = workTimeRule;
+  let remainingSeconds = workHours * 3600;
+  let currentDate = new Date(startDate);
+
+  const dayOfWeek = currentDate.getDay() as DayOfWeek;
+  const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
+
+  if (isWorkDay(currentDate, workDays, holidays) && workDay) {
+    const remainingInDay = getWorkSecondsRemainingInDay(currentDate, workDay);
+    if (remainingSeconds <= remainingInDay) {
+      let secsToAdd = remainingSeconds;
+      const currentSeconds = getSecondsSinceMidnight(currentDate);
+      for (const slot of workDay.slots) {
+        const start = parseTime(slot.startTime);
+        const end = parseTime(slot.endTime);
+        const startSeconds = start.hours * 3600 + start.minutes * 60;
+        const endSeconds = end.hours * 3600 + end.minutes * 60;
+        if (currentSeconds >= endSeconds) continue;
+        const slotStart = Math.max(currentSeconds, startSeconds);
+        const slotDuration = endSeconds - slotStart;
+        if (secsToAdd <= slotDuration) {
+          const resultSeconds = slotStart + secsToAdd;
+          currentDate.setHours(0, 0, 0, 0);
+          currentDate.setSeconds(resultSeconds);
+          return currentDate;
+        } else {
+          secsToAdd -= slotDuration;
+        }
+      }
+    } else {
+      remainingSeconds -= remainingInDay;
+    }
+  }
+
+  currentDate.setHours(0, 0, 0, 0);
+  currentDate.setDate(currentDate.getDate() + 1);
+
+  while (remainingSeconds > 0) {
+    const dayOfWeek = currentDate.getDay() as DayOfWeek;
+    const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
+
+    if (isWorkDay(currentDate, workDays, holidays) && workDay) {
+      const dayWorkSeconds = getDayWorkSeconds(workDay);
+      if (remainingSeconds <= dayWorkSeconds) {
+        let secsToAdd = remainingSeconds;
+        for (const slot of workDay.slots) {
+          const start = parseTime(slot.startTime);
+          const end = parseTime(slot.endTime);
+          const startSeconds = start.hours * 3600 + start.minutes * 60;
+          const endSeconds = end.hours * 3600 + end.minutes * 60;
+          const slotDuration = endSeconds - startSeconds;
+          if (secsToAdd <= slotDuration) {
+            const resultSeconds = startSeconds + secsToAdd;
+            currentDate.setSeconds(resultSeconds);
+            return currentDate;
+          } else {
+            secsToAdd -= slotDuration;
+          }
+        }
+      } else {
+        remainingSeconds -= dayWorkSeconds;
+      }
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return currentDate;
+}
+
+export function calculateWorkHoursBetween(startDate: Date, endDate: Date, workTimeRule: WorkTimeRule): number {
+  const { workDays, holidays } = workTimeRule;
+  if (endDate <= startDate) return 0;
+
+  let totalSeconds = 0;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const startDayOfWeek = start.getDay() as DayOfWeek;
+  const startWorkDay = workDays.find((d) => d.dayOfWeek === startDayOfWeek);
+  if (isWorkDay(start, workDays, holidays) && startWorkDay) {
+    const startDayEnd = new Date(start);
+    startDayEnd.setHours(23, 59, 59, 999);
+    if (end <= startDayEnd) {
+      const endDayOfWeek = end.getDay() as DayOfWeek;
+      const endWorkDay = workDays.find((d) => d.dayOfWeek === endDayOfWeek);
+      if (endWorkDay && isWorkDay(end, workDays, holidays)) {
+        const startPassed = getWorkSecondsPassedInDay(start, startWorkDay);
+        const endPassed = getWorkSecondsPassedInDay(end, endWorkDay);
+        totalSeconds = endPassed - startPassed;
+        return Math.max(0, totalSeconds) / 3600;
+      }
+    }
+    totalSeconds += getWorkSecondsRemainingInDay(start, startWorkDay);
+  }
+
+  const current = new Date(start);
+  current.setHours(0, 0, 0, 0);
+  current.setDate(current.getDate() + 1);
+
+  const endDay = new Date(end);
+  endDay.setHours(0, 0, 0, 0);
+
+  while (current < endDay) {
+    const dayOfWeek = current.getDay() as DayOfWeek;
+    const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
+    if (isWorkDay(current, workDays, holidays) && workDay) {
+      totalSeconds += getDayWorkSeconds(workDay);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  const endDayOfWeek = end.getDay() as DayOfWeek;
+  const endWorkDay = workDays.find((d) => d.dayOfWeek === endDayOfWeek);
+  if (isWorkDay(end, workDays, holidays) && endWorkDay) {
+    totalSeconds += getWorkSecondsPassedInDay(end, endWorkDay);
+  }
+
+  return Math.max(0, totalSeconds) / 3600;
 }

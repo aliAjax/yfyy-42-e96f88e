@@ -1,6 +1,5 @@
-import type { Complaint } from '@/types/complaint';
+import type { Complaint, TimeLimitRule, WorkTimeRule } from '@/types/complaint';
 import type { ReplyTemplate } from '@/types/replyTemplate';
-import type { TimeLimitRule } from '@/types/complaint';
 import {
   BACKUP_VERSION,
   type BackupFile,
@@ -13,7 +12,7 @@ import {
   type ImportPreviewResult,
 } from '@/types/backup';
 import { migrateComplaintData } from './helpers';
-import { getTimeLimitRules, saveTimeLimitRules } from './overdue';
+import { getTimeLimitRules, saveTimeLimitRules, getWorkTimeRule, saveWorkTimeRule } from './overdue';
 
 const COMPLAINT_STORAGE_KEY = 'complaint_records';
 const TEMPLATE_STORAGE_KEY = 'reply_templates';
@@ -48,6 +47,10 @@ function getCurrentTimeLimitRules(): TimeLimitRule[] {
   return getTimeLimitRules();
 }
 
+function getCurrentWorkTimeRule(): WorkTimeRule {
+  return getWorkTimeRule();
+}
+
 function getDataSummary(data: BackupDataV1) {
   const totalHandleRecords = data.complaints.reduce(
     (sum, c) => sum + (c.handleRecords?.length || 0),
@@ -64,6 +67,7 @@ function getDataSummary(data: BackupDataV1) {
     totalHandleRecords,
     totalEscalationRecords,
     timeLimitRuleCount: data.timeLimitRules?.length || 0,
+    hasWorkTimeRule: !!data.workTimeRule,
   };
 }
 
@@ -71,11 +75,13 @@ export function createBackup(): BackupFile {
   const complaints = getCurrentComplaints();
   const replyTemplates = getCurrentTemplates();
   const timeLimitRules = getCurrentTimeLimitRules();
+  const workTimeRule = getCurrentWorkTimeRule();
 
   const data: BackupDataV1 = {
     complaints,
     replyTemplates,
     timeLimitRules,
+    workTimeRule,
   };
 
   return {
@@ -522,11 +528,13 @@ export function applyImport(
     let finalComplaints: Complaint[];
     let finalTemplates: ReplyTemplate[];
     let finalTimeLimitRules: TimeLimitRule[];
+    let finalWorkTimeRule: WorkTimeRule;
 
     if (mode === 'overwrite_all') {
       finalComplaints = backupData.complaints;
       finalTemplates = backupData.replyTemplates;
       finalTimeLimitRules = backupData.timeLimitRules || currentTimeLimitRules;
+      finalWorkTimeRule = backupData.workTimeRule || getCurrentWorkTimeRule();
     } else {
       const currentComplaintMap = new Map(currentComplaints.map((c) => [c.id, c]));
       const currentTemplateMap = new Map(currentTemplates.map((t) => [t.id, t]));
@@ -563,19 +571,25 @@ export function applyImport(
       finalTimeLimitRules = backupData.timeLimitRules?.length
         ? backupData.timeLimitRules
         : currentTimeLimitRules;
+
+      finalWorkTimeRule = backupData.workTimeRule || getCurrentWorkTimeRule();
     }
 
     localStorage.setItem(COMPLAINT_STORAGE_KEY, JSON.stringify(finalComplaints));
     localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(finalTemplates));
     saveTimeLimitRules(finalTimeLimitRules);
+    saveWorkTimeRule(finalWorkTimeRule);
 
     const ruleMsg = backupData.timeLimitRules
       ? `，${finalTimeLimitRules.length} 条时限规则`
       : '';
+    const workTimeMsg = backupData.workTimeRule
+      ? `，工作时间规则`
+      : '';
 
     return {
       success: true,
-      message: `恢复成功！共 ${finalComplaints.length} 条诉求，${finalTemplates.length} 个模板${ruleMsg}`,
+      message: `恢复成功！共 ${finalComplaints.length} 条诉求，${finalTemplates.length} 个模板${ruleMsg}${workTimeMsg}`,
     };
   } catch (e) {
     console.error('Import failed:', e);

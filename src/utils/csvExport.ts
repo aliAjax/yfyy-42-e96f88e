@@ -1,5 +1,6 @@
 import { STATUS_OPTIONS } from '@/types/complaint';
 import type { Complaint } from '@/types/complaint';
+import { calculateOverdueInfo, formatHours } from './overdue';
 
 const EXPORT_HEADERS = [
   '编号',
@@ -10,6 +11,10 @@ const EXPORT_HEADERS = [
   '受理时间',
   '状态',
   '当前承办人',
+  '处理时限（小时）',
+  '截止时间',
+  '剩余时间',
+  '超期状态',
   '处理意见',
   '回复时间',
 ] as const;
@@ -29,6 +34,24 @@ function getStatusLabel(status: string): string {
 }
 
 function formatExportRow(complaint: Complaint): string[] {
+  const overdueInfo = calculateOverdueInfo(complaint);
+  
+  let overdueStatus = '正常';
+  if (overdueInfo.isOverdue) {
+    overdueStatus = '已超期';
+  } else if (overdueInfo.isWarning) {
+    overdueStatus = '即将超期';
+  }
+
+  let remainingText = '-';
+  if (complaint.status !== 'replied') {
+    if (overdueInfo.isOverdue) {
+      remainingText = `超期 ${formatHours(overdueInfo.overdueHours)}`;
+    } else {
+      remainingText = formatHours(overdueInfo.remainingHours);
+    }
+  }
+
   return [
     complaint.id,
     complaint.name,
@@ -38,6 +61,10 @@ function formatExportRow(complaint: Complaint): string[] {
     complaint.receiveTime,
     getStatusLabel(complaint.status),
     complaint.assigneeName || '未分派',
+    String(overdueInfo.timeLimitHours || 0),
+    overdueInfo.deadline || '-',
+    remainingText,
+    overdueStatus,
     complaint.handleOpinion || '',
     complaint.replyTime || '',
   ];

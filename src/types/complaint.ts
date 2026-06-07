@@ -10,12 +10,37 @@ export const STATUS_OPTIONS: { value: ComplaintStatus; label: string; color: str
   { value: 'replied', label: '已回复', color: 'green' },
 ];
 
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface WorkTimeSlot {
+  startTime: string;
+  endTime: string;
+}
+
+export interface WorkDayConfig {
+  dayOfWeek: DayOfWeek;
+  enabled: boolean;
+  slots: WorkTimeSlot[];
+}
+
+export interface HolidayItem {
+  date: string;
+  name: string;
+}
+
+export interface WorkTimeRule {
+  enabled: boolean;
+  workDays: WorkDayConfig[];
+  holidays: HolidayItem[];
+}
+
 export interface TimeLimitRule {
   id: string;
   type: string;
   source: string;
   timeLimitHours: number;
   warningHours: number;
+  useWorkTime?: boolean;
 }
 
 export interface EscalationRecord {

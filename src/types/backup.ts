@@ -1,8 +1,7 @@
-import type { Complaint } from './complaint';
+import type { Complaint, TimeLimitRule, WorkTimeRule } from './complaint';
 import type { ReplyTemplate } from './replyTemplate';
-import type { TimeLimitRule } from './complaint';
 
-export const BACKUP_VERSION = '1.1.0' as const;
+export const BACKUP_VERSION = '1.2.0' as const;
 
 export type BackupVersion = string;
 
@@ -19,12 +18,14 @@ export interface BackupDataSummary {
   totalHandleRecords: number;
   totalEscalationRecords: number;
   timeLimitRuleCount: number;
+  hasWorkTimeRule: boolean;
 }
 
 export interface BackupDataV1 {
   complaints: Complaint[];
   replyTemplates: ReplyTemplate[];
   timeLimitRules?: TimeLimitRule[];
+  workTimeRule?: WorkTimeRule;
 }
 
 export interface BackupFile {
