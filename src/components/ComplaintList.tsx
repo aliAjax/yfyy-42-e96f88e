@@ -75,7 +75,22 @@ export default function ComplaintList({
 
   useEffect(() => {
     if (externalFilter) {
-      setFilter({ ...externalFilter });
+      setFilter({
+        types: externalFilter.types || [],
+        sources: externalFilter.sources || [],
+        statuses: externalFilter.statuses || [],
+        visitBackStatuses: externalFilter.visitBackStatuses || [],
+        escalated: externalFilter.escalated !== undefined ? externalFilter.escalated : null,
+        overdue: externalFilter.overdue !== undefined ? externalFilter.overdue : null,
+        overdueLevel: externalFilter.overdueLevel !== undefined ? externalFilter.overdueLevel : null,
+        escalationMin: externalFilter.escalationMin !== undefined ? externalFilter.escalationMin : null,
+        escalationMax: externalFilter.escalationMax !== undefined ? externalFilter.escalationMax : null,
+        responseTimeMinHours: externalFilter.responseTimeMinHours !== undefined ? externalFilter.responseTimeMinHours : null,
+        responseTimeMaxHours: externalFilter.responseTimeMaxHours !== undefined ? externalFilter.responseTimeMaxHours : null,
+        receiveTimeStart: externalFilter.receiveTimeStart !== undefined ? externalFilter.receiveTimeStart : null,
+        receiveTimeEnd: externalFilter.receiveTimeEnd !== undefined ? externalFilter.receiveTimeEnd : null,
+        keyword: externalFilter.keyword || '',
+      });
     }
   }, [externalFilter]);
 

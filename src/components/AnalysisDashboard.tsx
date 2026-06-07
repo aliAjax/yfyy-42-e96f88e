@@ -155,13 +155,50 @@ export default function AnalysisDashboard({
   };
 
   const handleDrillDownByEscalation = (level: '0次' | '1次' | '2次' | '3次及以上') => {
-    let escalated: boolean | null = null;
-    if (level === '0次') escalated = false;
-    else escalated = true;
+    let escalationMin: number | null = null;
+    let escalationMax: number | null = null;
+
+    if (level === '0次') {
+      escalationMin = 0;
+      escalationMax = 0;
+    } else if (level === '1次') {
+      escalationMin = 1;
+      escalationMax = 1;
+    } else if (level === '2次') {
+      escalationMin = 2;
+      escalationMax = 2;
+    } else {
+      escalationMin = 3;
+      escalationMax = null;
+    }
 
     const viewFilter: ViewFilter = {
       ...DEFAULT_FILTER,
-      escalated,
+      escalationMin,
+      escalationMax,
+      receiveTimeStart: filter.receiveTimeStart,
+      receiveTimeEnd: filter.receiveTimeEnd,
+    };
+    onDrillDown(viewFilter);
+  };
+
+  const responseTimeBuckets = [
+    { label: '1小时内', min: 0, max: 1 },
+    { label: '1-6小时', min: 1, max: 6 },
+    { label: '6-12小时', min: 6, max: 12 },
+    { label: '12-24小时', min: 12, max: 24 },
+    { label: '24-48小时', min: 24, max: 48 },
+    { label: '48小时以上', min: 48, max: Infinity },
+  ];
+
+  const handleDrillDownByResponseTime = (bucketLabel: string) => {
+    const bucket = responseTimeBuckets.find((b) => b.label === bucketLabel);
+    if (!bucket) return;
+
+    const viewFilter: ViewFilter = {
+      ...DEFAULT_FILTER,
+      responseTimeMinHours: bucket.min,
+      responseTimeMaxHours: bucket.max === Infinity ? null : bucket.max,
       receiveTimeStart: filter.receiveTimeStart,
       receiveTimeEnd: filter.receiveTimeEnd,
     };
@@ -529,10 +566,17 @@ export default function AnalysisDashboard({
         </div>
         <div className="space-y-2.5">
           {stats.responseTimeStats.buckets.map((item) => (
-            <div key={item.bucket} className="space-y-1">
+            <button
+              key={item.bucket}
+              onClick={() => handleDrillDownByResponseTime(item.bucket)}
+              className="w-full space-y-1 text-left hover:bg-slate-50 rounded-lg p-1 -mx-1 transition-colors"
+            >
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-600 font-medium">{item.bucket}</span>
-                <span className="text-slate-500">{item.count} 件 · {item.ratio.toFixed(1)}%</span>
+                <span className="text-slate-500 flex items-center gap-1">
+                  {item.count} 件 · {item.ratio.toFixed(1)}%
+                  <ArrowRight className="w-3 h-3" />
+                </span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2">
                 <div
@@ -540,7 +584,7 @@ export default function AnalysisDashboard({
                   style={{ width: `${item.ratio}%` }}
                 ></div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>

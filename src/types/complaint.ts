@@ -398,6 +398,10 @@ export interface ViewFilter {
   escalated: boolean | null;
   overdue: boolean | null;
   overdueLevel: OverdueLevel | null;
+  escalationMin: number | null;
+  escalationMax: number | null;
+  responseTimeMinHours: number | null;
+  responseTimeMaxHours: number | null;
   receiveTimeStart: string | null;
   receiveTimeEnd: string | null;
   keyword: string;
@@ -420,6 +424,10 @@ export const DEFAULT_FILTER: ViewFilter = {
   escalated: null,
   overdue: null,
   overdueLevel: null,
+  escalationMin: null,
+  escalationMax: null,
+  responseTimeMinHours: null,
+  responseTimeMaxHours: null,
   receiveTimeStart: null,
   receiveTimeEnd: null,
   keyword: '',

@@ -14,8 +14,10 @@ import {
   Tag,
   Radio,
   Phone,
+  Clock,
 } from 'lucide-react';
 import { COMPLAINT_TYPES, SOURCE_CHANNELS, STATUS_OPTIONS, DEFAULT_FILTER, VISIT_BACK_STATUS_OPTIONS } from '@/types/complaint';
+import type { OverdueLevel } from '@/types/complaint';
 import type { ViewFilter, SavedView } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import {
@@ -184,6 +186,8 @@ export default function ViewFilterPanel({
     (filter.escalated !== null ? 1 : 0) +
     (filter.overdue !== null ? 1 : 0) +
     (filter.overdueLevel !== null ? 1 : 0) +
+    (filter.escalationMin !== null || filter.escalationMax !== null ? 1 : 0) +
+    (filter.responseTimeMinHours !== null || filter.responseTimeMaxHours !== null ? 1 : 0) +
     (filter.receiveTimeStart ? 1 : 0) +
     (filter.receiveTimeEnd ? 1 : 0)
   );
@@ -397,6 +401,101 @@ export default function ViewFilterPanel({
               >
                 {getTriStateLabel(filter.overdue, '超期')}
               </button>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <label className="text-sm font-medium text-slate-700">超期级别</label>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { value: null, label: '全部' },
+                  { value: 'normal', label: '正常' },
+                  { value: 'warning', label: '即将超期' },
+                  { value: 'overdue', label: '已超期' },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={() => {
+                      updateFilter((prev) => ({ ...prev, overdueLevel: item.value as OverdueLevel | null }));
+                    }}
+                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                      filter.overdueLevel === item.value
+                        ? 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-white text-slate-600 border-slate-300 hover:border-amber-400'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <label className="text-sm font-medium text-slate-700">升级次数</label>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="最少"
+                  value={filter.escalationMin ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                    updateFilter((prev) => ({ ...prev, escalationMin: val }));
+                  }}
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span className="text-slate-400 text-xs flex-shrink-0">至</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="最多"
+                  value={filter.escalationMax ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                    updateFilter((prev) => ({ ...prev, escalationMax: val }));
+                  }}
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <label className="text-sm font-medium text-slate-700">回复耗时(小时)</label>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="最少"
+                  value={filter.responseTimeMinHours ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? parseFloat(e.target.value) : null;
+                    updateFilter((prev) => ({ ...prev, responseTimeMinHours: val }));
+                  }}
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span className="text-slate-400 text-xs flex-shrink-0">至</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="最多"
+                  value={filter.responseTimeMaxHours ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? parseFloat(e.target.value) : null;
+                    updateFilter((prev) => ({ ...prev, responseTimeMaxHours: val }));
+                  }}
+                  className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
             </div>
 
             <div className="sm:col-span-2 lg:col-span-2 min-w-0">

@@ -7,13 +7,34 @@ import { calculateOverdueInfo } from './overdue';
 const VIEWS_STORAGE_KEY = 'complaint_saved_views';
 const ACTIVE_VIEW_STORAGE_KEY = 'complaint_active_view';
 
+function normalizeFilter(filter: Partial<ViewFilter>): ViewFilter {
+  return {
+    types: filter.types || [],
+    sources: filter.sources || [],
+    statuses: filter.statuses || [],
+    visitBackStatuses: filter.visitBackStatuses || [],
+    escalated: filter.escalated !== undefined ? filter.escalated : null,
+    overdue: filter.overdue !== undefined ? filter.overdue : null,
+    overdueLevel: filter.overdueLevel !== undefined ? filter.overdueLevel : null,
+    escalationMin: filter.escalationMin !== undefined ? filter.escalationMin : null,
+    escalationMax: filter.escalationMax !== undefined ? filter.escalationMax : null,
+    responseTimeMinHours: filter.responseTimeMinHours !== undefined ? filter.responseTimeMinHours : null,
+    responseTimeMaxHours: filter.responseTimeMaxHours !== undefined ? filter.responseTimeMaxHours : null,
+    receiveTimeStart: filter.receiveTimeStart !== undefined ? filter.receiveTimeStart : null,
+    receiveTimeEnd: filter.receiveTimeEnd !== undefined ? filter.receiveTimeEnd : null,
+    keyword: filter.keyword || '',
+  };
+}
+
 export function getSavedViews(role: UserRole): SavedView[] {
   const defaults = getDefaultViews(role);
   const stored = localStorage.getItem(VIEWS_STORAGE_KEY);
   if (!stored) return defaults;
   try {
     const allViews: SavedView[] = JSON.parse(stored);
-    const roleViews = allViews.filter((v) => v.role === role);
+    const roleViews = allViews
+      .filter((v) => v.role === role)
+      .map((v) => ({ ...v, filter: normalizeFilter(v.filter) }));
     return [...defaults, ...roleViews];
   } catch {
     return defaults;
@@ -207,6 +228,19 @@ export function applyFilter(
       const overdueInfo = calculateOverdueInfo(c, now);
       if (overdueInfo.level !== filter.overdueLevel) return false;
     }
+    if (filter.escalationMin !== null || filter.escalationMax !== null) {
+      const escalationCount = c.escalationRecords?.length || 0;
+      if (filter.escalationMin !== null && escalationCount < filter.escalationMin) return false;
+      if (filter.escalationMax !== null && escalationCount > filter.escalationMax) return false;
+    }
+    if (filter.responseTimeMinHours !== null || filter.responseTimeMaxHours !== null) {
+      if (c.status !== 'replied' || !c.receiveTime || !c.replyTime) return false;
+      const receive = new Date(c.receiveTime).getTime();
+      const reply = new Date(c.replyTime).getTime();
+      const responseHours = (reply - receive) / (1000 * 60 * 60);
+      if (filter.responseTimeMinHours !== null && responseHours < filter.responseTimeMinHours) return false;
+      if (filter.responseTimeMaxHours !== null && responseHours >= filter.responseTimeMaxHours) return false;
+    }
     if (filter.receiveTimeStart) {
       if (new Date(c.receiveTime) < new Date(filter.receiveTimeStart)) return false;
     }
@@ -236,6 +270,10 @@ export function isFilterEmpty(filter: ViewFilter): boolean {
     filter.escalated === null &&
     filter.overdue === null &&
     filter.overdueLevel === null &&
+    filter.escalationMin === null &&
+    filter.escalationMax === null &&
+    filter.responseTimeMinHours === null &&
+    filter.responseTimeMaxHours === null &&
     filter.receiveTimeStart === null &&
     filter.receiveTimeEnd === null &&
     !filter.keyword.trim()
