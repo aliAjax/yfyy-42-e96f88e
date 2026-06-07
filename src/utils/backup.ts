@@ -560,15 +560,9 @@ export function applyImport(
       }
       finalTemplates = Array.from(mergedTemplateMap.values());
 
-      if (backupData.timeLimitRules && backupData.timeLimitRules.length > 0) {
-        if (mode === 'merge_overwrite') {
-          finalTimeLimitRules = backupData.timeLimitRules;
-        } else {
-          finalTimeLimitRules = currentTimeLimitRules;
-        }
-      } else {
-        finalTimeLimitRules = currentTimeLimitRules;
-      }
+      finalTimeLimitRules = backupData.timeLimitRules?.length
+        ? backupData.timeLimitRules
+        : currentTimeLimitRules;
     }
 
     localStorage.setItem(COMPLAINT_STORAGE_KEY, JSON.stringify(finalComplaints));

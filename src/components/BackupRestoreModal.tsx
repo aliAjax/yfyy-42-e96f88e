@@ -12,6 +12,7 @@ import {
   FileText,
   RefreshCw,
   Shield,
+  Clock,
 } from 'lucide-react';
 import type {
   ImportPreviewResult,
@@ -281,8 +282,10 @@ function ExportPanel({ onExport }: { onExport: () => void }) {
     try {
       const complaintsStr = localStorage.getItem('complaint_records');
       const templatesStr = localStorage.getItem('reply_templates');
+      const timeLimitStr = localStorage.getItem('time_limit_rules');
       const complaints = complaintsStr ? JSON.parse(complaintsStr) : [];
       const templates = templatesStr ? JSON.parse(templatesStr) : [];
+      const timeLimitRules = timeLimitStr ? JSON.parse(timeLimitStr) : [];
 
       const totalHandleRecords = complaints.reduce(
         (sum: number, c: Complaint) => sum + (c.handleRecords?.length || 0),
@@ -296,11 +299,18 @@ function ExportPanel({ onExport }: { onExport: () => void }) {
       return {
         complaintCount: complaints.length,
         templateCount: templates.length,
+        timeLimitRuleCount: timeLimitRules.length || 0,
         totalHandleRecords,
         totalEscalationRecords,
       };
     } catch {
-      return { complaintCount: 0, templateCount: 0, totalHandleRecords: 0, totalEscalationRecords: 0 };
+      return {
+        complaintCount: 0,
+        templateCount: 0,
+        timeLimitRuleCount: 0,
+        totalHandleRecords: 0,
+        totalEscalationRecords: 0,
+      };
     }
   }, []);
 
@@ -340,6 +350,13 @@ function ExportPanel({ onExport }: { onExport: () => void }) {
         </div>
       </div>
 
+      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex items-center gap-3">
+        <Clock className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+        <div className="text-sm text-indigo-800">
+          含 <span className="font-semibold">{currentBackup.timeLimitRuleCount}</span> 条时限规则配置
+        </div>
+      </div>
+
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -348,6 +365,7 @@ function ExportPanel({ onExport }: { onExport: () => void }) {
             <ul className="text-xs text-amber-700 mt-1 space-y-1">
               <li>• 备份文件包含所有诉求及相关处理记录、升级记录</li>
               <li>• 备份文件包含所有回复模板</li>
+              <li>• 备份文件包含时限规则配置</li>
               <li>• 备份版本号：v{BACKUP_VERSION}</li>
               <li>• 请妥善保管备份文件，包含用户隐私信息</li>
             </ul>
