@@ -11,7 +11,8 @@
     "check": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "verify": "npm run check && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "clsx": "^2.1.1",
