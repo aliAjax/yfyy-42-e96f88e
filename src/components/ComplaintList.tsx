@@ -36,6 +36,8 @@ interface ComplaintListProps {
   onToggleShowMerged?: (show: boolean) => void;
   allComplaints?: Complaint[];
   canViewMerged?: boolean;
+  externalFilter?: ViewFilter | null;
+  onFilterChange?: (filter: ViewFilter) => void;
 }
 
 export default function ComplaintList({
@@ -56,6 +58,8 @@ export default function ComplaintList({
   onToggleShowMerged,
   allComplaints,
   canViewMerged: propCanViewMerged,
+  externalFilter,
+  onFilterChange: onFilterChangeProp,
 }: ComplaintListProps) {
   const canViewMerged = propCanViewMerged ?? hasPermission(currentRole, 'view_merged_complaints');
   const canExport = hasPermission(currentRole, 'export_data');
@@ -68,6 +72,12 @@ export default function ComplaintList({
   const [filter, setFilter] = useState<ViewFilter>({ ...DEFAULT_FILTER });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchAction, setBatchAction] = useState<BatchActionType | null>(null);
+
+  useEffect(() => {
+    if (externalFilter) {
+      setFilter({ ...externalFilter });
+    }
+  }, [externalFilter]);
 
   const visibleComplaints = useMemo(() => {
     if (!canViewAll) {
@@ -125,6 +135,9 @@ export default function ComplaintList({
 
   const handleFilterChange = (newFilter: ViewFilter) => {
     setFilter(newFilter);
+    if (onFilterChangeProp) {
+      onFilterChangeProp(newFilter);
+    }
   };
 
   const handleSelect = (id: string, selected: boolean) => {

@@ -5,6 +5,7 @@ import ComplaintForm from '@/components/ComplaintForm';
 import ComplaintList from '@/components/ComplaintList';
 import DetailModal from '@/components/DetailModal';
 import Dashboard from '@/components/Dashboard';
+import AnalysisDashboard from '@/components/AnalysisDashboard';
 import ImportModal from '@/components/ImportModal';
 import DuplicateGroupModal from '@/components/DuplicateGroupModal';
 import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
@@ -13,15 +14,16 @@ import TimeLimitRuleManageModal from '@/components/TimeLimitRuleManageModal';
 import OperationLogModal from '@/components/OperationLogModal';
 import { mockComplaints } from '@/data/mockData';
 import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
-import { calculateDashboardStats } from '@/utils/stats';
+import { calculateDashboardStats, calculateAnalysisStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
 import { mergeComplaints, getMasterComplaint } from '@/utils/merge';
 import { logOperation as recordOperationLog } from '@/utils/operationLog';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus } from '@/types/complaint';
-import type { UserRole } from '@/utils/permissions';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus, AnalysisFilter, ViewFilter } from '@/types/complaint';
+import { DEFAULT_ANALYSIS_FILTER, DEFAULT_FILTER } from '@/types/complaint';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
+import type { UserRole } from '@/utils/permissions';
 
 const STORAGE_KEY = 'complaint_records';
 const ROLE_STORAGE_KEY = 'current_role';
@@ -50,6 +52,8 @@ export default function Home() {
   });
 
   const [now, setNow] = useState<Date>(new Date());
+  const [analysisFilter, setAnalysisFilter] = useState<AnalysisFilter>({ ...DEFAULT_ANALYSIS_FILTER });
+  const [drilledFilter, setDrilledFilter] = useState<ViewFilter | null>(null);
 
   const canViewStatistics = hasPermission(currentRole, 'view_statistics');
   const canManageTemplates = hasPermission(currentRole, 'manage_templates');
@@ -78,6 +82,13 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [visibleComplaints, now, timeLimitRulesVersion]
   );
+
+  const analysisStats = useMemo(
+    () => calculateAnalysisStats(visibleComplaints, analysisFilter, now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleComplaints, analysisFilter, now, timeLimitRulesVersion]
+  );
+
   const overdueCount = useMemo(
     () => calculateOverdueCount(visibleComplaints, now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,6 +298,16 @@ export default function Home() {
       );
     }
     showToast(result.message, result.success ? 'success' : 'error');
+  };
+
+  const handleAnalysisDrillDown = (viewFilter: ViewFilter) => {
+    setDrilledFilter(viewFilter);
+    setShowDashboard(false);
+    showToast('已跳转到列表并应用筛选条件', 'success');
+  };
+
+  const handleAnalysisFilterChange = (filter: AnalysisFilter) => {
+    setAnalysisFilter(filter);
   };
 
   const handleViewDuplicates = (complaintId: string) => {
@@ -1091,6 +1112,7 @@ export default function Home() {
                 onViewMaster={canViewMerged ? handleViewMaster : undefined}
                 allComplaints={complaints}
                 canViewMerged={canViewMerged}
+                externalFilter={drilledFilter}
               />
             </div>
           </div>
@@ -1123,13 +1145,13 @@ export default function Home() {
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
             onClick={() => setShowDashboard(false)}
           ></div>
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-slate-50 shadow-2xl overflow-y-auto transition-transform">
+          <div className="absolute right-0 top-0 h-full w-full max-w-xl bg-slate-50 shadow-2xl overflow-y-auto transition-transform">
             <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-center justify-between z-10">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                   <BarChart3 className="w-4 h-4 text-blue-600" />
                 </div>
-                <h3 className="font-semibold text-slate-800">数据看板</h3>
+                <h3 className="font-semibold text-slate-800">数据分析</h3>
               </div>
               <button
                 onClick={() => setShowDashboard(false)}
@@ -1139,7 +1161,15 @@ export default function Home() {
               </button>
             </div>
             <div className="p-5">
-              <Dashboard stats={dashboardStats} />
+              <AnalysisDashboard
+                stats={analysisStats}
+                filter={analysisFilter}
+                onFilterChange={handleAnalysisFilterChange}
+                onDrillDown={handleAnalysisDrillDown}
+                complaints={visibleComplaints}
+                onClose={() => setShowDashboard(false)}
+                onExport={handleExport}
+              />
             </div>
           </div>
         </div>

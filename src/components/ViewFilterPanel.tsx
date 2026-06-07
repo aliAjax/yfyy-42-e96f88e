@@ -183,6 +183,7 @@ export default function ViewFilterPanel({
     (filter.visitBackStatuses.length > 0 ? 1 : 0) +
     (filter.escalated !== null ? 1 : 0) +
     (filter.overdue !== null ? 1 : 0) +
+    (filter.overdueLevel !== null ? 1 : 0) +
     (filter.receiveTimeStart ? 1 : 0) +
     (filter.receiveTimeEnd ? 1 : 0)
   );

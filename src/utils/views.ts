@@ -203,6 +203,10 @@ export function applyFilter(
       if (filter.overdue && !overdueInfo.isOverdue) return false;
       if (!filter.overdue && overdueInfo.isOverdue) return false;
     }
+    if (filter.overdueLevel !== null) {
+      const overdueInfo = calculateOverdueInfo(c, now);
+      if (overdueInfo.level !== filter.overdueLevel) return false;
+    }
     if (filter.receiveTimeStart) {
       if (new Date(c.receiveTime) < new Date(filter.receiveTimeStart)) return false;
     }
@@ -231,6 +235,7 @@ export function isFilterEmpty(filter: ViewFilter): boolean {
     filter.visitBackStatuses.length === 0 &&
     filter.escalated === null &&
     filter.overdue === null &&
+    filter.overdueLevel === null &&
     filter.receiveTimeStart === null &&
     filter.receiveTimeEnd === null &&
     !filter.keyword.trim()

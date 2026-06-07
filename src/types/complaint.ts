@@ -259,6 +259,85 @@ export interface DashboardStats {
   satisfactionStats: SatisfactionStats;
 }
 
+export interface EscalationCountItem {
+  count: number;
+  ratio: number;
+}
+
+export interface EscalationDistribution {
+  '0次': EscalationCountItem;
+  '1次': EscalationCountItem;
+  '2次': EscalationCountItem;
+  '3次及以上': EscalationCountItem;
+}
+
+export interface ResponseTimeItem {
+  bucket: string;
+  count: number;
+  ratio: number;
+}
+
+export interface ResponseTimeStats {
+  buckets: ResponseTimeItem[];
+  avgHours: number;
+  medianHours: number;
+}
+
+export interface OverdueLevelDistribution {
+  normal: EscalationCountItem;
+  warning: EscalationCountItem;
+  overdue: EscalationCountItem;
+}
+
+export interface StatusFlowItem {
+  from: string;
+  to: string;
+  count: number;
+}
+
+export interface StatusFlowStats {
+  pendingToProcessing: number;
+  processingToReplied: number;
+  pendingToReplied: number;
+  totalTransitions: number;
+}
+
+export type AnalysisDimension =
+  | 'type'
+  | 'source'
+  | 'status'
+  | 'overdueLevel'
+  | 'escalationCount'
+  | 'responseTime'
+  | 'statusFlow';
+
+export interface AnalysisFilter {
+  receiveTimeStart: string | null;
+  receiveTimeEnd: string | null;
+}
+
+export const DEFAULT_ANALYSIS_FILTER: AnalysisFilter = {
+  receiveTimeStart: null,
+  receiveTimeEnd: null,
+};
+
+export type DrilledFilter = Partial<ViewFilter> & {
+  analysisTimeStart?: string | null;
+  analysisTimeEnd?: string | null;
+};
+
+export interface AnalysisStats {
+  total: number;
+  typeRatio: TypeRatioItem[];
+  sourceDistribution: SourceDistributionItem[];
+  statusCount: StatusCount;
+  overdueLevelDistribution: OverdueLevelDistribution;
+  escalationDistribution: EscalationDistribution;
+  responseTimeStats: ResponseTimeStats;
+  statusFlowStats: StatusFlowStats;
+  dailyTrend: DailyTrendItem[];
+}
+
 export interface ImportRowError {
   field: string;
   message: string;
@@ -318,6 +397,7 @@ export interface ViewFilter {
   visitBackStatuses: VisitBackStatus[];
   escalated: boolean | null;
   overdue: boolean | null;
+  overdueLevel: OverdueLevel | null;
   receiveTimeStart: string | null;
   receiveTimeEnd: string | null;
   keyword: string;
@@ -339,6 +419,7 @@ export const DEFAULT_FILTER: ViewFilter = {
   visitBackStatuses: [],
   escalated: null,
   overdue: null,
+  overdueLevel: null,
   receiveTimeStart: null,
   receiveTimeEnd: null,
   keyword: '',
