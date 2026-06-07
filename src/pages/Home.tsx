@@ -15,7 +15,7 @@ import { calculateDashboardStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData } from '@/types/complaint';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord } from '@/types/complaint';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 
@@ -31,6 +31,7 @@ export default function Home() {
   const [showBackupRestore, setShowBackupRestore] = useState(false);
   const [showTimeLimitManage, setShowTimeLimitManage] = useState(false);
   const [timeLimitRulesVersion, setTimeLimitRulesVersion] = useState(0);
+  const [complaintsLoaded, setComplaintsLoaded] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
   const [handlers, setHandlers] = useState<HandlerUser[]>([]);
   const [currentHandlerId, setCurrentHandlerIdState] = useState<string>('');
@@ -114,6 +115,7 @@ export default function Home() {
       setComplaints(mockComplaints);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(mockComplaints));
     }
+    setComplaintsLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -124,10 +126,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (complaints.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(complaints));
-    }
-  }, [complaints]);
+    if (!complaintsLoaded) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(complaints));
+  }, [complaints, complaintsLoaded]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ show: true, message, type });
@@ -371,36 +372,29 @@ export default function Home() {
     }
     const now = new Date().toISOString();
     const operableIds = new Set(operableComplaints.map((c) => c.id));
-    const operatorName = currentHandler?.name || ROLE_LABELS[currentRole];
-    const operatorId = currentHandlerId || '';
+    const operatorName = currentRole === 'handler'
+      ? currentHandler?.name || ROLE_LABELS[currentRole]
+      : ROLE_LABELS[currentRole];
+    const operatorId = currentRole === 'handler' ? currentHandlerId : currentRole;
+    const batchRecords = new Map<string, HandleRecord>(
+      operableComplaints.map((c) => [
+        c.id,
+        {
+          id: generateId(),
+          status: data.status,
+          handleOpinion: data.handleOpinion,
+          replyTime: data.replyTime,
+          operatedAt: now,
+          operatorId,
+          operatorName,
+        },
+      ])
+    );
 
     setComplaints((prev) =>
       prev.map((c) => {
-        if (!operableIds.has(c.id)) return c;
-
-        const lastRecord = c.handleRecords.length > 0
-          ? c.handleRecords[c.handleRecords.length - 1]
-          : null;
-
-        const hasChanged = !lastRecord
-          || lastRecord.status !== data.status
-          || lastRecord.handleOpinion !== data.handleOpinion
-          || lastRecord.replyTime !== data.replyTime;
-
-        const newRecords = hasChanged
-          ? [
-              ...c.handleRecords,
-              {
-                id: generateId(),
-                status: data.status,
-                handleOpinion: data.handleOpinion,
-                replyTime: data.replyTime,
-                operatedAt: now,
-                operatorId,
-                operatorName,
-              },
-            ]
-          : c.handleRecords;
+        const batchRecord = batchRecords.get(c.id);
+        if (!batchRecord) return c;
 
         return {
           ...c,
@@ -408,7 +402,7 @@ export default function Home() {
           handleOpinion: data.handleOpinion,
           replyTime: data.replyTime,
           updatedAt: now,
-          handleRecords: newRecords,
+          handleRecords: [...c.handleRecords, batchRecord],
         };
       })
     );
@@ -416,34 +410,15 @@ export default function Home() {
     if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
       setSelectedComplaint((prev) => {
         if (!prev) return prev;
-        const lastRecord = prev.handleRecords.length > 0
-          ? prev.handleRecords[prev.handleRecords.length - 1]
-          : null;
-        const hasChanged = !lastRecord
-          || lastRecord.status !== data.status
-          || lastRecord.handleOpinion !== data.handleOpinion
-          || lastRecord.replyTime !== data.replyTime;
-        const newRecords = hasChanged
-          ? [
-              ...prev.handleRecords,
-              {
-                id: generateId(),
-                status: data.status,
-                handleOpinion: data.handleOpinion,
-                replyTime: data.replyTime,
-                operatedAt: now,
-                operatorId,
-                operatorName,
-              },
-            ]
-          : prev.handleRecords;
+        const batchRecord = batchRecords.get(prev.id);
+        if (!batchRecord) return prev;
         return {
           ...prev,
           status: data.status,
           handleOpinion: data.handleOpinion,
           replyTime: data.replyTime,
           updatedAt: now,
-          handleRecords: newRecords,
+          handleRecords: [...prev.handleRecords, batchRecord],
         };
       });
     }
