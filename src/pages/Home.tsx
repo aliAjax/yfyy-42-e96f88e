@@ -11,25 +11,23 @@ import ReplyTemplateManageModal from '@/components/ReplyTemplateManageModal';
 import BackupRestoreModal from '@/components/BackupRestoreModal';
 import TimeLimitRuleManageModal from '@/components/TimeLimitRuleManageModal';
 import OperationLogModal from '@/components/OperationLogModal';
-import { mockComplaints } from '@/data/mockData';
-import { generateId, migrateComplaintData, formatDateTime } from '@/utils/helpers';
 import { calculateAnalysisStats } from '@/utils/stats';
 import { calculateOverdueCount } from '@/utils/overdue';
 import { exportComplaintsToCSV } from '@/utils/csvExport';
 import { getHandlers, getCurrentHandler, setCurrentHandlerId } from '@/utils/handlers';
 import { mergeComplaints, getMasterComplaint } from '@/utils/merge';
 import { logOperation as recordOperationLog } from '@/utils/operationLog';
-import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, EscalationRecord, AssignmentFormData, HandlerUser, BatchStatusData, HandleRecord, VisitBackFormData, VisitBackRecord, VisitBackStatus, AnalysisFilter, ViewFilter } from '@/types/complaint';
+import { useComplaints } from '@/hooks/useComplaints';
+import type { Complaint, ComplaintFormData, HandleFormData, ComplaintStatus, AssignmentFormData, HandlerUser, BatchStatusData, VisitBackFormData, AnalysisFilter, ViewFilter } from '@/types/complaint';
 import { DEFAULT_ANALYSIS_FILTER } from '@/types/complaint';
 import { hasPermission, getDisabledReason, ROLE_LABELS } from '@/utils/permissions';
 import type { UserRole } from '@/utils/permissions';
+import type { OperatorContext } from '@/utils/complaintMutations';
 
 const STORAGE_KEY = 'complaint_records';
 const ROLE_STORAGE_KEY = 'current_role';
 
 export default function Home() {
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showTemplateManage, setShowTemplateManage] = useState(false);
@@ -40,7 +38,6 @@ export default function Home() {
   const [showMerged, setShowMerged] = useState(false);
   const [showOperationLog, setShowOperationLog] = useState(false);
   const [timeLimitRulesVersion, setTimeLimitRulesVersion] = useState(0);
-  const [complaintsLoaded, setComplaintsLoaded] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('admin');
   const [handlers, setHandlers] = useState<HandlerUser[]>([]);
   const [currentHandlerId, setCurrentHandlerIdState] = useState<string>('');
@@ -53,6 +50,24 @@ export default function Home() {
   const [now, setNow] = useState<Date>(new Date());
   const [analysisFilter, setAnalysisFilter] = useState<AnalysisFilter>({ ...DEFAULT_ANALYSIS_FILTER });
   const [drilledFilter, setDrilledFilter] = useState<ViewFilter | null>(null);
+
+  const {
+    complaints,
+    selectedComplaint,
+    setSelectedComplaint,
+    addComplaint,
+    batchImport,
+    handleComplaint,
+    escalateComplaint,
+    assignComplaint,
+    visitBackComplaint,
+    deleteComplaint,
+    batchHandle,
+    batchEscalate,
+    batchDelete,
+    replaceComplaints,
+    refreshFromStorage,
+  } = useComplaints({ storageKey: STORAGE_KEY });
 
   const canViewStatistics = hasPermission(currentRole, 'view_statistics');
   const canManageTemplates = hasPermission(currentRole, 'manage_templates');
@@ -110,43 +125,17 @@ export default function Home() {
     }
   }, []);
 
-  const handleCurrentHandlerChange = (handlerId: string) => {
-    const handler = handlers.find((h) => h.id === handlerId);
-    const oldHandler = handlers.find((h) => h.id === currentHandlerId);
-    if (handler) {
-      logOperation(
-        'switch_handler',
-        'handler',
-        handlerId,
-        handler.name,
-        `从${oldHandler?.name || '未选择'}切换为处理员：${handler.name}`,
-        { fromHandlerId: currentHandlerId, toHandlerId: handlerId }
-      );
-    }
-    setCurrentHandlerIdState(handlerId);
-    setCurrentHandlerId(handlerId);
-    if (handler) {
-      showToast(`已切换为处理员：${handler.name}`, 'success');
-    }
-  };
+  const currentHandler = useMemo(() => {
+    return handlers.find((h) => h.id === currentHandlerId) || null;
+  }, [handlers, currentHandlerId]);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const migrated = migrateComplaintData(parsed);
-        setComplaints(migrated);
-      } catch {
-        setComplaints(mockComplaints);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mockComplaints));
-      }
-    } else {
-      setComplaints(mockComplaints);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mockComplaints));
-    }
-    setComplaintsLoaded(true);
-  }, []);
+  const operatorContext = useMemo((): OperatorContext => {
+    const operatorName = currentRole === 'handler'
+      ? currentHandler?.name || ROLE_LABELS[currentRole]
+      : ROLE_LABELS[currentRole];
+    const operatorId = currentRole === 'handler' ? currentHandlerId : currentRole;
+    return { operatorName, operatorId };
+  }, [currentRole, currentHandler, currentHandlerId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -154,11 +143,6 @@ export default function Home() {
     }, 60000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (!complaintsLoaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(complaints));
-  }, [complaints, complaintsLoaded]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ show: true, message, type });
@@ -196,38 +180,44 @@ export default function Home() {
     showToast(`已切换为${ROLE_LABELS[role]}角色`, 'success');
   };
 
+  const handleCurrentHandlerChange = (handlerId: string) => {
+    const handler = handlers.find((h) => h.id === handlerId);
+    const oldHandler = handlers.find((h) => h.id === currentHandlerId);
+    if (handler) {
+      logOperation(
+        'switch_handler',
+        'handler',
+        handlerId,
+        handler.name,
+        `从${oldHandler?.name || '未选择'}切换为处理员：${handler.name}`,
+        { fromHandlerId: currentHandlerId, toHandlerId: handlerId }
+      );
+    }
+    setCurrentHandlerIdState(handlerId);
+    setCurrentHandlerId(handlerId);
+    if (handler) {
+      showToast(`已切换为处理员：${handler.name}`, 'success');
+    }
+  };
+
+  const canOperateComplaint = (complaint: { id: string; assigneeId?: string }) => {
+    if (canViewAll) return true;
+    if (currentRole === 'handler') {
+      return !!currentHandlerId && complaint.assigneeId === currentHandlerId;
+    }
+    return true;
+  };
+
   const handleAddComplaint = (data: ComplaintFormData) => {
     if (!hasPermission(currentRole, 'create_complaint')) {
       showToast('无新增诉求权限', 'error');
       return;
     }
-    const now = new Date().toISOString();
-    const newId = generateId();
-    const newComplaint: Complaint = {
-      id: newId,
-      ...data,
-      status: 'pending',
-      handleOpinion: '',
-      replyTime: '',
-      createdAt: now,
-      updatedAt: now,
-      handleRecords: [],
-      escalationRecords: [],
-      assignmentRecords: [],
-      visitBackStatus: 'pending',
-      visitBackRecords: [],
-      mergeStatus: 'active',
-      masterComplaintId: '',
-      masterComplaintName: '',
-      mergedRecords: [],
-      duplicateGroupId: '',
-      sources: data.source ? [data.source] : [''],
-    };
-    setComplaints((prev) => [newComplaint, ...prev]);
+    const newComplaint = addComplaint(data);
     logOperation(
       'create_complaint',
       'complaint',
-      newId,
+      newComplaint.id,
       data.name,
       `新增诉求：${data.name}（${data.type}），来源：${data.source}`,
       { type: data.type, source: data.source }
@@ -240,28 +230,7 @@ export default function Home() {
       showToast('无批量导入权限', 'error');
       return;
     }
-    const now = new Date().toISOString();
-    const newComplaints: Complaint[] = rows.map((data) => ({
-      id: generateId(),
-      ...data,
-      status: 'pending',
-      handleOpinion: '',
-      replyTime: '',
-      createdAt: now,
-      updatedAt: now,
-      handleRecords: [],
-      escalationRecords: [],
-      assignmentRecords: [],
-      visitBackStatus: 'pending',
-      visitBackRecords: [],
-      mergeStatus: 'active',
-      masterComplaintId: '',
-      masterComplaintName: '',
-      mergedRecords: [],
-      duplicateGroupId: '',
-      sources: data.source ? [data.source] : [''],
-    }));
-    setComplaints((prev) => [...newComplaints, ...prev]);
+    batchImport(rows);
     setShowImportModal(false);
     logOperation(
       'import_complaints',
@@ -322,18 +291,14 @@ export default function Home() {
       return;
     }
 
-    const operatorName = currentRole === 'handler'
-      ? currentHandler?.name || ROLE_LABELS[currentRole]
-      : ROLE_LABELS[currentRole];
-
-    const mergedResults = mergeComplaints(masterComplaint, complaintsToMerge, operatorName, mergeReason);
+    const mergedResults = mergeComplaints(masterComplaint, complaintsToMerge, operatorContext.operatorName, mergeReason);
 
     const mergedIdsSet = new Set([masterId, ...mergedIds]);
     const otherComplaints = complaints.filter((c) => !mergedIdsSet.has(c.id));
 
     const updatedComplaints = [...otherComplaints, ...mergedResults];
 
-    setComplaints(updatedComplaints);
+    replaceComplaints(updatedComplaints);
 
     const updatedMaster = mergedResults.find((c) => c.id === masterId);
     if (updatedMaster) {
@@ -359,19 +324,7 @@ export default function Home() {
     }
   };
 
-  const canOperateComplaint = (complaint: Complaint) => {
-    if (canViewAll) return true;
-    if (currentRole === 'handler') {
-      return !!currentHandlerId && complaint.assigneeId === currentHandlerId;
-    }
-    return true;
-  };
-
-  const currentHandler = useMemo(() => {
-    return handlers.find((h) => h.id === currentHandlerId) || null;
-  }, [handlers, currentHandlerId]);
-
-  const handleComplaint = (id: string, data: HandleFormData) => {
+  const handleComplaintAction = (id: string, data: HandleFormData) => {
     if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
       showToast('无处理权限', 'error');
       return;
@@ -385,44 +338,8 @@ export default function Home() {
       showToast('您只能处理分派给自己的诉求', 'error');
       return;
     }
-    const now = new Date().toISOString();
     const statusLabel = data.status === 'pending' ? '待处理' : data.status === 'processing' ? '处理中' : '已回复';
-    setComplaints((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-
-        const lastRecord = c.handleRecords.length > 0
-          ? c.handleRecords[c.handleRecords.length - 1]
-          : null;
-
-        const hasChanged = !lastRecord
-          || lastRecord.status !== data.status
-          || lastRecord.handleOpinion !== data.handleOpinion
-          || lastRecord.replyTime !== data.replyTime;
-
-        const newRecords = hasChanged
-          ? [
-              ...c.handleRecords,
-              {
-                id: generateId(),
-                status: data.status,
-                handleOpinion: data.handleOpinion,
-                replyTime: data.replyTime,
-                operatedAt: now,
-              },
-            ]
-          : c.handleRecords;
-
-        return {
-          ...c,
-          status: data.status,
-          handleOpinion: data.handleOpinion,
-          replyTime: data.replyTime,
-          updatedAt: now,
-          handleRecords: newRecords,
-        };
-      })
-    );
+    handleComplaint(id, data, operatorContext);
     logOperation(
       'handle_complaint',
       'complaint',
@@ -449,35 +366,7 @@ export default function Home() {
       showToast('您只能升级分派给自己的诉求', 'error');
       return;
     }
-    const now = new Date().toISOString();
-    const escalationRecord: EscalationRecord = {
-      id: generateId(),
-      reason,
-      escalatedAt: formatDateTime(new Date(now)),
-      escalatedBy: ROLE_LABELS[currentRole],
-    };
-
-    setComplaints((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const existingRecords = c.escalationRecords || [];
-        return {
-          ...c,
-          updatedAt: now,
-          escalationRecords: [...existingRecords, escalationRecord],
-        };
-      })
-    );
-
-    setSelectedComplaint((prev) => {
-      if (!prev || prev.id !== id) return prev;
-      return {
-        ...prev,
-        updatedAt: now,
-        escalationRecords: [...(prev.escalationRecords || []), escalationRecord],
-      };
-    });
-
+    escalateComplaint(id, reason, ROLE_LABELS[currentRole]);
     logOperation(
       'escalate_complaint',
       'complaint',
@@ -495,42 +384,7 @@ export default function Home() {
       return;
     }
     const targetComplaint = complaints.find((c) => c.id === id);
-    const now = new Date().toISOString();
-    const assignmentRecord = {
-      id: generateId(),
-      assigneeId: data.assigneeId,
-      assigneeName: data.assigneeName,
-      assignorId: 'admin',
-      assignorName: ROLE_LABELS[currentRole],
-      remark: data.remark,
-      assignedAt: now,
-    };
-
-    setComplaints((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const existingRecords = c.assignmentRecords || [];
-        return {
-          ...c,
-          assigneeId: data.assigneeId,
-          assigneeName: data.assigneeName,
-          updatedAt: now,
-          assignmentRecords: [...existingRecords, assignmentRecord],
-        };
-      })
-    );
-
-    setSelectedComplaint((prev) => {
-      if (!prev || prev.id !== id) return prev;
-      return {
-        ...prev,
-        assigneeId: data.assigneeId,
-        assigneeName: data.assigneeName,
-        updatedAt: now,
-        assignmentRecords: [...(prev.assignmentRecords || []), assignmentRecord],
-      };
-    });
-
+    assignComplaint(id, data, operatorContext);
     if (targetComplaint) {
       logOperation(
         'assign_complaint',
@@ -559,109 +413,7 @@ export default function Home() {
       return;
     }
 
-    const now = new Date().toISOString();
-    const operatorName = currentRole === 'handler'
-      ? currentHandler?.name || ROLE_LABELS[currentRole]
-      : ROLE_LABELS[currentRole];
-    const operatorId = currentRole === 'handler' ? currentHandlerId : currentRole;
-
-    const isDissatisfied = data.satisfaction === 'dissatisfied' || data.satisfaction === 'very_dissatisfied';
-    const newVisitBackStatus: VisitBackStatus = data.reopenCase
-      ? 'unsatisfied'
-      : isDissatisfied
-      ? 'unsatisfied'
-      : 'completed';
-
-    const visitBackRecord: VisitBackRecord = {
-      id: generateId(),
-      visitBackTime: data.visitBackTime,
-      visitBackResult: data.visitBackResult,
-      satisfaction: data.satisfaction,
-      unsatisfiedReason: data.unsatisfiedReason,
-      secondaryHandleNote: data.secondaryHandleNote,
-      isReopened: data.reopenCase,
-      operatedAt: now,
-      operatorId,
-      operatorName,
-    };
-
-    setComplaints((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-
-        const existingRecords = c.visitBackRecords || [];
-        const updatedVisitBackRecords = [...existingRecords, visitBackRecord];
-
-        let updatedStatus = c.status;
-        let updatedHandleRecords = c.handleRecords;
-        let updatedHandleOpinion = c.handleOpinion;
-        const updatedReplyTime = c.replyTime;
-
-        if (data.reopenCase) {
-          updatedStatus = 'processing';
-          const reopenRecord: HandleRecord = {
-            id: generateId(),
-            status: 'processing',
-            handleOpinion: data.secondaryHandleNote || '因群众不满意，重新进入处理流程',
-            replyTime: '',
-            operatedAt: now,
-            operatorId,
-            operatorName,
-          };
-          updatedHandleRecords = [...c.handleRecords, reopenRecord];
-          updatedHandleOpinion = data.secondaryHandleNote || c.handleOpinion;
-        }
-
-        return {
-          ...c,
-          status: updatedStatus,
-          handleOpinion: updatedHandleOpinion,
-          replyTime: updatedReplyTime,
-          updatedAt: now,
-          handleRecords: updatedHandleRecords,
-          visitBackStatus: data.reopenCase ? 'unsatisfied' : newVisitBackStatus,
-          visitBackRecords: updatedVisitBackRecords,
-        };
-      })
-    );
-
-    setSelectedComplaint((prev) => {
-      if (!prev || prev.id !== id) return prev;
-
-      const existingRecords = prev.visitBackRecords || [];
-      const updatedVisitBackRecords = [...existingRecords, visitBackRecord];
-
-      let updatedStatus = prev.status;
-      let updatedHandleRecords = prev.handleRecords;
-      let updatedHandleOpinion = prev.handleOpinion;
-      const updatedReplyTime = prev.replyTime;
-
-      if (data.reopenCase) {
-        updatedStatus = 'processing';
-        const reopenRecord: HandleRecord = {
-          id: generateId(),
-          status: 'processing',
-          handleOpinion: data.secondaryHandleNote || '因群众不满意，重新进入处理流程',
-          replyTime: '',
-          operatedAt: now,
-          operatorId,
-          operatorName,
-        };
-        updatedHandleRecords = [...prev.handleRecords, reopenRecord];
-        updatedHandleOpinion = data.secondaryHandleNote || prev.handleOpinion;
-      }
-
-      return {
-        ...prev,
-        status: updatedStatus,
-        handleOpinion: updatedHandleOpinion,
-        replyTime: updatedReplyTime,
-        updatedAt: now,
-        handleRecords: updatedHandleRecords,
-        visitBackStatus: data.reopenCase ? 'unsatisfied' : newVisitBackStatus,
-        visitBackRecords: updatedVisitBackRecords,
-      };
-    });
+    visitBackComplaint(id, data, operatorContext);
 
     if (targetComplaint) {
       logOperation(
@@ -687,7 +439,7 @@ export default function Home() {
       return;
     }
     const targetComplaint = complaints.find((c) => c.id === id);
-    setComplaints((prev) => prev.filter((c) => c.id !== id));
+    deleteComplaint(id);
     if (targetComplaint) {
       logOperation(
         'delete_complaint',
@@ -701,7 +453,7 @@ export default function Home() {
     showToast('诉求记录已删除');
   };
 
-  const handleBatchUpdateStatus = (selectedComplaints: Complaint[], data: BatchStatusData) => {
+  const handleBatchUpdateStatus = (selectedComplaints: { id: string; assigneeId?: string; name?: string }[], data: BatchStatusData) => {
     if (!hasPermission(currentRole, 'update_status') && !hasPermission(currentRole, 'update_handle_opinion')) {
       showToast('无处理权限', 'error');
       return;
@@ -711,58 +463,8 @@ export default function Home() {
       showToast('没有可操作的诉求', 'error');
       return;
     }
-    const now = new Date().toISOString();
-    const operableIds = new Set(operableComplaints.map((c) => c.id));
-    const operatorName = currentRole === 'handler'
-      ? currentHandler?.name || ROLE_LABELS[currentRole]
-      : ROLE_LABELS[currentRole];
-    const operatorId = currentRole === 'handler' ? currentHandlerId : currentRole;
-    const batchRecords = new Map<string, HandleRecord>(
-      operableComplaints.map((c) => [
-        c.id,
-        {
-          id: generateId(),
-          status: data.status,
-          handleOpinion: data.handleOpinion,
-          replyTime: data.replyTime,
-          operatedAt: now,
-          operatorId,
-          operatorName,
-        },
-      ])
-    );
-
-    setComplaints((prev) =>
-      prev.map((c) => {
-        const batchRecord = batchRecords.get(c.id);
-        if (!batchRecord) return c;
-
-        return {
-          ...c,
-          status: data.status,
-          handleOpinion: data.handleOpinion,
-          replyTime: data.replyTime,
-          updatedAt: now,
-          handleRecords: [...c.handleRecords, batchRecord],
-        };
-      })
-    );
-
-    if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
-      setSelectedComplaint((prev) => {
-        if (!prev) return prev;
-        const batchRecord = batchRecords.get(prev.id);
-        if (!batchRecord) return prev;
-        return {
-          ...prev,
-          status: data.status,
-          handleOpinion: data.handleOpinion,
-          replyTime: data.replyTime,
-          updatedAt: now,
-          handleRecords: [...prev.handleRecords, batchRecord],
-        };
-      });
-    }
+    const operableIds = operableComplaints.map((c) => c.id);
+    batchHandle(operableIds, data, operatorContext);
 
     const skipped = selectedComplaints.length - operableComplaints.length;
     if (operableComplaints.length > 0) {
@@ -782,7 +484,7 @@ export default function Home() {
     }
   };
 
-  const handleBatchEscalate = (selectedComplaints: Complaint[], reason: string) => {
+  const handleBatchEscalate = (selectedComplaints: { id: string; assigneeId?: string; name?: string }[], reason: string) => {
     if (!hasPermission(currentRole, 'escalate_complaint')) {
       showToast('无升级处理权限', 'error');
       return;
@@ -792,45 +494,8 @@ export default function Home() {
       showToast('没有可操作的诉求', 'error');
       return;
     }
-    const now = new Date().toISOString();
-    const operableIds = new Set(operableComplaints.map((c) => c.id));
-    const escalatedBy = ROLE_LABELS[currentRole];
-    const escalatedAt = formatDateTime(new Date(now));
-
-    setComplaints((prev) =>
-      prev.map((c) => {
-        if (!operableIds.has(c.id)) return c;
-        const existingRecords = c.escalationRecords || [];
-        const newRecord: EscalationRecord = {
-          id: generateId(),
-          reason,
-          escalatedAt,
-          escalatedBy,
-        };
-        return {
-          ...c,
-          updatedAt: now,
-          escalationRecords: [...existingRecords, newRecord],
-        };
-      })
-    );
-
-    if (selectedComplaint && operableIds.has(selectedComplaint.id)) {
-      setSelectedComplaint((prev) => {
-        if (!prev) return prev;
-        const newRecord: EscalationRecord = {
-          id: generateId(),
-          reason,
-          escalatedAt,
-          escalatedBy,
-        };
-        return {
-          ...prev,
-          updatedAt: now,
-          escalationRecords: [...(prev.escalationRecords || []), newRecord],
-        };
-      });
-    }
+    const operableIds = operableComplaints.map((c) => c.id);
+    batchEscalate(operableIds, reason, ROLE_LABELS[currentRole]);
 
     const skipped = selectedComplaints.length - operableComplaints.length;
     if (operableComplaints.length > 0) {
@@ -850,17 +515,13 @@ export default function Home() {
     }
   };
 
-  const handleBatchDelete = (selectedComplaints: Complaint[]) => {
+  const handleBatchDelete = (selectedComplaints: { id: string; name?: string }[]) => {
     if (!hasPermission(currentRole, 'delete_complaint')) {
       showToast('无删除记录权限', 'error');
       return;
     }
-    const idsToDelete = new Set(selectedComplaints.map((c) => c.id));
-    setComplaints((prev) => prev.filter((c) => !idsToDelete.has(c.id)));
-
-    if (selectedComplaint && idsToDelete.has(selectedComplaint.id)) {
-      setSelectedComplaint(null);
-    }
+    const idsToDelete = selectedComplaints.map((c) => c.id);
+    batchDelete(idsToDelete);
 
     logOperation(
       'batch_delete',
@@ -893,16 +554,7 @@ export default function Home() {
   };
 
   const handleRestoreComplete = () => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const migrated = migrateComplaintData(parsed);
-        setComplaints(migrated);
-      } catch {
-        // ignore
-      }
-    }
+    refreshFromStorage();
     setTimeLimitRulesVersion((v) => v + 1);
     logOperation(
       'restore_data',
@@ -1116,7 +768,7 @@ export default function Home() {
         <DetailModal
           complaint={selectedComplaint}
           onClose={() => setSelectedComplaint(null)}
-          onHandle={handleComplaint}
+          onHandle={handleComplaintAction}
           onEscalate={handleEscalate}
           onDelete={canDelete ? handleDelete : undefined}
           onAssign={handleAssign}
