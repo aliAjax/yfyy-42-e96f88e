@@ -65,20 +65,30 @@ export function calculateOverdueStats(complaints: Complaint[], now?: Date): Over
   return calculateOverdueCount(complaints, now);
 }
 
+function hasEnteredVisitBackFlow(complaint: Complaint): boolean {
+  return (
+    complaint.status === 'replied' ||
+    Boolean(complaint.replyTime) ||
+    complaint.handleRecords.some((record) => record.status === 'replied') ||
+    complaint.visitBackRecords.length > 0
+  );
+}
+
 export function calculateVisitBackStatusCount(complaints: Complaint[]): VisitBackStatusCount {
-  const repliedComplaints = complaints.filter((c) => c.status === 'replied');
-  const allUnsatisfied = complaints.filter((c) => c.visitBackStatus === 'unsatisfied');
+  const visitBackFlowComplaints = complaints.filter(hasEnteredVisitBackFlow);
   return {
-    pending: repliedComplaints.filter((c) => c.visitBackStatus === 'pending').length,
-    completed: repliedComplaints.filter((c) => c.visitBackStatus === 'completed').length,
-    unsatisfied: allUnsatisfied.length,
+    pending: visitBackFlowComplaints.filter((c) => c.visitBackStatus === 'pending').length,
+    completed: visitBackFlowComplaints.filter((c) => c.visitBackStatus === 'completed').length,
+    unsatisfied: visitBackFlowComplaints.filter((c) => c.visitBackStatus === 'unsatisfied').length,
   };
 }
 
 export function calculateSatisfactionStats(complaints: Complaint[]): SatisfactionStats {
-  const repliedComplaints = complaints.filter((c) => c.status === 'replied');
-  const visitedComplaints = complaints.filter(
-    (c) => c.visitBackStatus === 'completed' || c.visitBackStatus === 'unsatisfied'
+  const visitBackFlowComplaints = complaints.filter(hasEnteredVisitBackFlow);
+  const visitedComplaints = visitBackFlowComplaints.filter(
+    (c) =>
+      c.visitBackRecords.length > 0 &&
+      (c.visitBackStatus === 'completed' || c.visitBackStatus === 'unsatisfied')
   );
 
   let totalScore = 0;
@@ -116,7 +126,7 @@ export function calculateSatisfactionStats(complaints: Complaint[]): Satisfactio
   });
 
   const visitedCount = visitedComplaints.length;
-  const totalReplied = repliedComplaints.length;
+  const totalReplied = visitBackFlowComplaints.length;
   const visitBackRate = totalReplied > 0 ? (visitedCount / totalReplied) * 100 : 0;
   const averageScore = visitedCount > 0 ? totalScore / visitedCount : 0;
   const satisfiedOrAbove = verySatisfiedCount + satisfiedCount;
