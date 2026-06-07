@@ -154,3 +154,34 @@ export interface ImportPreviewResult {
   invalidCount: number;
   rows: ParsedImportRow[];
 }
+
+export interface ViewFilter {
+  types: string[];
+  sources: string[];
+  statuses: ComplaintStatus[];
+  escalated: boolean | null;
+  overdue: boolean | null;
+  receiveTimeStart: string | null;
+  receiveTimeEnd: string | null;
+  keyword: string;
+}
+
+export interface SavedView {
+  id: string;
+  name: string;
+  filter: ViewFilter;
+  createdAt: string;
+  updatedAt: string;
+  role: string;
+}
+
+export const DEFAULT_FILTER: ViewFilter = {
+  types: [],
+  sources: [],
+  statuses: [],
+  escalated: null,
+  overdue: null,
+  receiveTimeStart: null,
+  receiveTimeEnd: null,
+  keyword: '',
+};

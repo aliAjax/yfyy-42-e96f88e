@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Search, ListFilter, Download, Lock } from 'lucide-react';
+import { ListFilter, Download, Lock, Search } from 'lucide-react';
 import ComplaintCard from './ComplaintCard';
-import type { Complaint, ComplaintStatus } from '@/types/complaint';
-import { STATUS_OPTIONS } from '@/types/complaint';
+import ViewFilterPanel from './ViewFilterPanel';
+import type { Complaint, ViewFilter } from '@/types/complaint';
+import { DEFAULT_FILTER } from '@/types/complaint';
 import { calculateOverdueInfo } from '@/utils/overdue';
 import type { UserRole } from '@/utils/permissions';
 import { hasPermission, getDisabledReason } from '@/utils/permissions';
+import { applyFilter } from '@/utils/views';
 
 interface ComplaintListProps {
   complaints: Complaint[];
@@ -17,99 +19,46 @@ interface ComplaintListProps {
   currentHandlerId?: string;
 }
 
-type TabType = 'all' | ComplaintStatus | 'overdue' | 'warning' | 'escalated' | 'my_todo' | 'unassigned' | 'assigned';
-
-export default function ComplaintList({ complaints, onCardClick, onExport, now, currentRole, onDelete, currentHandlerId }: ComplaintListProps) {
+export default function ComplaintList({
+  complaints,
+  onCardClick,
+  onExport,
+  now,
+  currentRole,
+  onDelete,
+  currentHandlerId,
+}: ComplaintListProps) {
   const canExport = hasPermission(currentRole, 'export_data');
   const canViewAll = hasPermission(currentRole, 'view_all_complaints');
   const exportDisabledReason = getDisabledReason(currentRole, 'export_data');
-  const [activeTab, setActiveTab] = useState<TabType>(canViewAll ? 'all' : 'my_todo');
-  const [searchQuery, setSearchQuery] = useState('');
+
+  const [filter, setFilter] = useState<ViewFilter>({ ...DEFAULT_FILTER });
 
   const visibleComplaints = useMemo(() => {
     if (!canViewAll) {
-      return currentHandlerId ? complaints.filter((c) => c.assigneeId === currentHandlerId) : [];
+      return currentHandlerId
+        ? complaints.filter((c) => c.assigneeId === currentHandlerId)
+        : [];
     }
     return complaints;
   }, [complaints, canViewAll, currentHandlerId]);
 
-  const overdueCount = visibleComplaints.filter(
-    (c) => c.status !== 'replied' && calculateOverdueInfo(c, now).isOverdue
-  ).length;
-  const warningCount = visibleComplaints.filter(
-    (c) => c.status !== 'replied' && calculateOverdueInfo(c, now).isWarning && !calculateOverdueInfo(c, now).isOverdue
-  ).length;
-  const escalatedCount = visibleComplaints.filter(
-    (c) => c.escalationRecords && c.escalationRecords.length > 0
-  ).length;
-
-  const myTodoCount = visibleComplaints.filter(
-    (c) => c.status !== 'replied' && c.assigneeId === currentHandlerId
-  ).length;
-
-  const unassignedCount = complaints.filter(
-    (c) => !c.assigneeId
-  ).length;
-
-  const assignedCount = complaints.filter(
-    (c) => !!c.assigneeId
-  ).length;
-
-  const tabs: { key: TabType; label: string; count: number; icon?: string }[] = [
-    ...(canViewAll ? [{ key: 'all' as TabType, label: '全部', count: complaints.length }] : []),
-    { key: 'my_todo' as TabType, label: '我的待办', count: myTodoCount },
-    ...(canViewAll ? [{ key: 'unassigned' as TabType, label: '未分派', count: unassignedCount }] : []),
-    ...(canViewAll ? [{ key: 'assigned' as TabType, label: '已分派', count: assignedCount }] : []),
-    ...STATUS_OPTIONS.map((opt) => ({
-      key: opt.value as ComplaintStatus,
-      label: opt.label,
-      count: visibleComplaints.filter((c) => c.status === opt.value).length,
-    })),
-    { key: 'overdue' as TabType, label: '已超期', count: overdueCount },
-    { key: 'warning' as TabType, label: '即将超期', count: warningCount },
-    { key: 'escalated' as TabType, label: '已升级', count: escalatedCount },
-  ];
-
-  const filteredComplaints = visibleComplaints
-    .filter((c) => {
-      if (activeTab === 'my_todo') {
-        return c.status !== 'replied';
-      }
-      if (activeTab === 'unassigned') {
-        return !c.assigneeId;
-      }
-      if (activeTab === 'assigned') {
-        return !!c.assigneeId;
-      }
-      if (activeTab === 'overdue') {
-        return c.status !== 'replied' && calculateOverdueInfo(c, now).isOverdue;
-      }
-      if (activeTab === 'warning') {
-        const info = calculateOverdueInfo(c, now);
-        return c.status !== 'replied' && info.isWarning && !info.isOverdue;
-      }
-      if (activeTab === 'escalated') {
-        return c.escalationRecords && c.escalationRecords.length > 0;
-      }
-      if (activeTab !== 'all' && c.status !== activeTab) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.content.toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
-          (c.assigneeName && c.assigneeName.toLowerCase().includes(q))
-        );
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const aOverdue = a.status !== 'replied' && calculateOverdueInfo(a, now).isOverdue;
-      const bOverdue = b.status !== 'replied' && calculateOverdueInfo(b, now).isOverdue;
+  const filteredComplaints = useMemo(() => {
+    const result = applyFilter(visibleComplaints, filter, now);
+    return result.sort((a, b) => {
+      const aOverdue =
+        a.status !== 'replied' && calculateOverdueInfo(a, now).isOverdue;
+      const bOverdue =
+        b.status !== 'replied' && calculateOverdueInfo(b, now).isOverdue;
       if (aOverdue && !bOverdue) return -1;
       if (!aOverdue && bOverdue) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
+  }, [visibleComplaints, filter, now]);
+
+  const handleFilterChange = (newFilter: ViewFilter) => {
+    setFilter(newFilter);
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
@@ -126,8 +75,8 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
         </div>
         <div className="relative group">
           <button
-            onClick={() => canExport && onExport(filteredComplaints)}
-            disabled={!canExport}
+            onClick={() => canExport && onExport && onExport(filteredComplaints)}
+            disabled={!canExport || !onExport}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm ${
               canExport
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
@@ -146,94 +95,20 @@ export default function ComplaintList({ complaints, onCardClick, onExport, now, 
         </div>
       </div>
 
-      <div className="px-6 py-3 border-b border-slate-100">
-        <div className="relative mb-3">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="搜索姓名、内容、电话..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-          />
-        </div>
-
-        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto">
-          {tabs.map((tab) => {
-            const isOverdueTab = tab.key === 'overdue';
-            const isWarningTab = tab.key === 'warning';
-            const isEscalatedTab = tab.key === 'escalated';
-            const isMyTodoTab = tab.key === 'my_todo';
-            const isUnassignedTab = tab.key === 'unassigned';
-            const isAssignedTab = tab.key === 'assigned';
-            
-            const getActiveClass = () => {
-              if (isOverdueTab) return 'bg-white text-red-600 shadow-sm';
-              if (isWarningTab) return 'bg-white text-amber-600 shadow-sm';
-              if (isEscalatedTab) return 'bg-white text-purple-600 shadow-sm';
-              if (isMyTodoTab) return 'bg-white text-green-600 shadow-sm';
-              if (isUnassignedTab) return 'bg-white text-orange-600 shadow-sm';
-              if (isAssignedTab) return 'bg-white text-cyan-600 shadow-sm';
-              return 'bg-white text-blue-600 shadow-sm';
-            };
-            
-            const getInactiveClass = () => {
-              if (isOverdueTab) return 'text-red-500 hover:text-red-700';
-              if (isWarningTab) return 'text-amber-500 hover:text-amber-700';
-              if (isEscalatedTab) return 'text-purple-500 hover:text-purple-700';
-              if (isMyTodoTab) return 'text-green-500 hover:text-green-700';
-              if (isUnassignedTab) return 'text-orange-500 hover:text-orange-700';
-              if (isAssignedTab) return 'text-cyan-500 hover:text-cyan-700';
-              return 'text-slate-600 hover:text-slate-800';
-            };
-            
-            const getBadgeActiveClass = () => {
-              if (isOverdueTab) return 'bg-red-100 text-red-600';
-              if (isWarningTab) return 'bg-amber-100 text-amber-600';
-              if (isEscalatedTab) return 'bg-purple-100 text-purple-600';
-              if (isMyTodoTab) return 'bg-green-100 text-green-600';
-              if (isUnassignedTab) return 'bg-orange-100 text-orange-600';
-              if (isAssignedTab) return 'bg-cyan-100 text-cyan-600';
-              return 'bg-blue-100 text-blue-600';
-            };
-            
-            const getBadgeInactiveClass = () => {
-              if (isOverdueTab) return 'bg-red-200/50 text-red-600';
-              if (isWarningTab) return 'bg-amber-200/50 text-amber-600';
-              if (isEscalatedTab) return 'bg-purple-200/50 text-purple-600';
-              if (isMyTodoTab) return 'bg-green-200/50 text-green-600';
-              if (isUnassignedTab) return 'bg-orange-200/50 text-orange-600';
-              if (isAssignedTab) return 'bg-cyan-200/50 text-cyan-600';
-              return 'bg-slate-200 text-slate-600';
-            };
-            
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  activeTab === tab.key ? getActiveClass() : getInactiveClass()
-                }`}
-              >
-                {tab.label}
-                <span
-                  className={`ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full ${
-                    activeTab === tab.key ? getBadgeActiveClass() : getBadgeInactiveClass()
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <ViewFilterPanel
+        filter={filter}
+        onFilterChange={handleFilterChange}
+        currentRole={currentRole}
+        totalCount={visibleComplaints.length}
+        filteredCount={filteredComplaints.length}
+      />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {filteredComplaints.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
             <Search className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm">暂无数据</p>
+            <p className="text-sm">暂无匹配的诉求数据</p>
+            <p className="text-xs mt-1">尝试调整筛选条件或切换视图</p>
           </div>
         ) : (
           filteredComplaints.map((complaint) => (
