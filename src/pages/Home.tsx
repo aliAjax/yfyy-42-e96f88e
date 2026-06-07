@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BarChart3, X, Upload, FileText, Lock, Database, Clock, ScrollText } from 'lucide-react';
 import Header from '@/components/Header';
 import ComplaintForm from '@/components/ComplaintForm';

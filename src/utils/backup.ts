@@ -18,7 +18,6 @@ import { getOperationLogs, saveOperationLogs } from './operationLog';
 
 const COMPLAINT_STORAGE_KEY = 'complaint_records';
 const TEMPLATE_STORAGE_KEY = 'reply_templates';
-const LOG_STORAGE_KEY = 'operation_logs';
 const APP_NAME = '投诉建议登记系统';
 
 function getCurrentComplaints(): Complaint[] {

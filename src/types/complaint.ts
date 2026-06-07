@@ -283,7 +283,33 @@ export interface ImportPreviewResult {
   validCount: number;
   invalidCount: number;
   rows: ParsedImportRow[];
+  headers: string[];
+  fieldMapping: FieldMapping;
 }
+
+export type ImportFieldKey = 'name' | 'phone' | 'type' | 'source' | 'receiveTime' | 'content';
+
+export const IMPORT_FIELD_LABELS: Record<ImportFieldKey, string> = {
+  name: '姓名',
+  phone: '电话',
+  type: '诉求类型',
+  source: '来源',
+  receiveTime: '受理时间',
+  content: '内容',
+};
+
+export interface FieldMapping {
+  name: number | null;
+  phone: number | null;
+  type: number | null;
+  source: number | null;
+  receiveTime: number | null;
+  content: number | null;
+}
+
+export type ImportStep = 'paste' | 'mapping' | 'preview';
+
+export type ImportMode = 'all' | 'skipInvalid' | 'skipInvalidAndDuplicates';
 
 export interface ViewFilter {
   types: string[];

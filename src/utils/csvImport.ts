@@ -1,24 +1,13 @@
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
-import type { ComplaintFormData, ParsedImportRow, ImportPreviewResult, ImportRowError } from '@/types/complaint';
+import type { ComplaintFormData, ParsedImportRow, ImportPreviewResult, ImportRowError, FieldMapping, ImportFieldKey } from '@/types/complaint';
 
-const FIELD_MAPPINGS: Record<string, keyof ComplaintFormData> = {
-  '姓名': 'name',
-  'name': 'name',
-  '电话': 'phone',
-  '联系方式': 'phone',
-  'phone': 'phone',
-  '诉求类型': 'type',
-  '类型': 'type',
-  'type': 'type',
-  '来源渠道': 'source',
-  '来源': 'source',
-  'source': 'source',
-  '受理时间': 'receiveTime',
-  '时间': 'receiveTime',
-  'receiveTime': 'receiveTime',
-  '具体内容': 'content',
-  '内容': 'content',
-  'content': 'content',
+const FIELD_MAPPING_KEYWORDS: Record<ImportFieldKey, string[]> = {
+  name: ['姓名', 'name', '联系人', '客户姓名', '用户姓名'],
+  phone: ['电话', 'phone', '联系方式', '手机号', '手机号码', '联系电话', '电话号码'],
+  type: ['诉求类型', '类型', 'type', '类别', '投诉类型', '诉求类别'],
+  source: ['来源渠道', '来源', 'source', '渠道', '投诉来源', '来源方式'],
+  receiveTime: ['受理时间', '时间', 'receiveTime', '登记时间', '创建时间', '提交时间', '发生时间'],
+  content: ['具体内容', '内容', 'content', '诉求内容', '详细内容', '描述', '问题描述'],
 };
 
 function parseCSVLine(line: string): string[] {
@@ -130,29 +119,76 @@ function validateRowData(data: ComplaintFormData): ImportRowError[] {
   return errors;
 }
 
-export function parseCSVText(text: string): ImportPreviewResult {
+export function parseCSVHeaders(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) return [];
+
+  return parseCSVLine(lines[0]);
+}
+
+export function autoDetectFieldMapping(headers: string[]): FieldMapping {
+  const mapping: FieldMapping = {
+    name: null,
+    phone: null,
+    type: null,
+    source: null,
+    receiveTime: null,
+    content: null,
+  };
+
+  const normalizedHeaders = headers.map((h) => h.trim().toLowerCase());
+
+  for (const field of Object.keys(FIELD_MAPPING_KEYWORDS) as ImportFieldKey[]) {
+    const keywords = FIELD_MAPPING_KEYWORDS[field];
+    for (const keyword of keywords) {
+      const index = normalizedHeaders.findIndex(
+        (h) => h === keyword.toLowerCase() || h.includes(keyword.toLowerCase())
+      );
+      if (index !== -1) {
+        mapping[field] = index;
+        break;
+      }
+    }
+  }
+
+  return mapping;
+}
+
+export function parseCSVText(
+  text: string,
+  fieldMapping?: FieldMapping
+): ImportPreviewResult {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
   if (lines.length === 0) {
-    return { total: 0, validCount: 0, invalidCount: 0, rows: [] };
+    return {
+      total: 0,
+      validCount: 0,
+      invalidCount: 0,
+      rows: [],
+      headers: [],
+      fieldMapping: {
+        name: null,
+        phone: null,
+        type: null,
+        source: null,
+        receiveTime: null,
+        content: null,
+      },
+    };
   }
 
   const headerLine = lines[0];
   const headers = parseCSVLine(headerLine);
 
-  const fieldIndices: Partial<Record<keyof ComplaintFormData, number>> = {};
-  headers.forEach((header, index) => {
-    const normalizedHeader = header.trim().toLowerCase();
-    for (const [key, field] of Object.entries(FIELD_MAPPINGS)) {
-      if (key.toLowerCase() === normalizedHeader || header.trim() === key) {
-        fieldIndices[field] = index;
-        break;
-      }
-    }
-  });
+  const effectiveMapping = fieldMapping || autoDetectFieldMapping(headers);
 
   const dataRows = lines.slice(1);
   const parsedRows: ParsedImportRow[] = [];
@@ -168,10 +204,11 @@ export function parseCSVText(text: string): ImportPreviewResult {
       receiveTime: '',
     };
 
-    for (const [field, index] of Object.entries(fieldIndices)) {
-      if (index !== undefined && values[index] !== undefined) {
+    for (const field of Object.keys(effectiveMapping) as ImportFieldKey[]) {
+      const index = effectiveMapping[field];
+      if (index !== null && values[index] !== undefined) {
         const value = values[index];
-        switch (field as keyof ComplaintFormData) {
+        switch (field) {
           case 'name':
             data.name = value;
             break;
@@ -211,5 +248,7 @@ export function parseCSVText(text: string): ImportPreviewResult {
     validCount,
     invalidCount,
     rows: parsedRows,
+    headers,
+    fieldMapping: effectiveMapping,
   };
 }
