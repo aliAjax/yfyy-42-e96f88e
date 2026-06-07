@@ -145,7 +145,7 @@ function getDefaultViews(role: UserRole): SavedView[] {
     {
       id: 'default_unsatisfied',
       name: '未满意',
-      filter: { ...DEFAULT_FILTER, statuses: ['replied'], visitBackStatuses: ['unsatisfied'] },
+      filter: { ...DEFAULT_FILTER, visitBackStatuses: ['unsatisfied'] },
       createdAt: now,
       updatedAt: now,
       role,
@@ -183,11 +183,15 @@ export function applyFilter(
     if (filter.types.length > 0 && !filter.types.includes(c.type)) return false;
     if (filter.sources.length > 0 && !filter.sources.includes(c.source)) return false;
     if (filter.statuses.length > 0 && !filter.statuses.includes(c.status)) return false;
-    if (filter.visitBackStatuses.length > 0 && c.status === 'replied') {
-      if (!filter.visitBackStatuses.includes(c.visitBackStatus)) return false;
-    }
-    if (filter.visitBackStatuses.length > 0 && c.status !== 'replied') {
-      return false;
+    if (filter.visitBackStatuses.length > 0) {
+      const hasOnlyUnsatisfied =
+        filter.visitBackStatuses.length === 1 && filter.visitBackStatuses[0] === 'unsatisfied';
+      if (hasOnlyUnsatisfied) {
+        if (c.visitBackStatus !== 'unsatisfied') return false;
+      } else {
+        if (c.status !== 'replied') return false;
+        if (!filter.visitBackStatuses.includes(c.visitBackStatus)) return false;
+      }
     }
     if (filter.escalated !== null) {
       const hasEscalation = c.escalationRecords && c.escalationRecords.length > 0;

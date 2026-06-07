@@ -173,7 +173,7 @@ export default function PrintReceipt({ complaint, onClose }: PrintReceiptProps) 
                 </p>
               </div>
 
-              {complaint.status === 'replied' && (
+              {complaint.visitBackRecords && complaint.visitBackRecords.length > 0 && (
                 <div className="pt-2">
                   <div className="text-sm font-medium text-slate-700 mb-2 pb-1 border-b border-slate-200">
                     回访信息

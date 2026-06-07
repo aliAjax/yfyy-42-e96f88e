@@ -9,7 +9,6 @@ import type {
   DailyTrendItem,
   VisitBackStatusCount,
   SatisfactionStats,
-  SatisfactionLevel,
 } from '@/types/complaint';
 import { getLast7Days } from './helpers';
 import { calculateOverdueCount } from './overdue';
@@ -68,16 +67,17 @@ export function calculateOverdueStats(complaints: Complaint[], now?: Date): Over
 
 export function calculateVisitBackStatusCount(complaints: Complaint[]): VisitBackStatusCount {
   const repliedComplaints = complaints.filter((c) => c.status === 'replied');
+  const allUnsatisfied = complaints.filter((c) => c.visitBackStatus === 'unsatisfied');
   return {
     pending: repliedComplaints.filter((c) => c.visitBackStatus === 'pending').length,
     completed: repliedComplaints.filter((c) => c.visitBackStatus === 'completed').length,
-    unsatisfied: repliedComplaints.filter((c) => c.visitBackStatus === 'unsatisfied').length,
+    unsatisfied: allUnsatisfied.length,
   };
 }
 
 export function calculateSatisfactionStats(complaints: Complaint[]): SatisfactionStats {
   const repliedComplaints = complaints.filter((c) => c.status === 'replied');
-  const visitedComplaints = repliedComplaints.filter(
+  const visitedComplaints = complaints.filter(
     (c) => c.visitBackStatus === 'completed' || c.visitBackStatus === 'unsatisfied'
   );
 

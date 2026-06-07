@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock, Phone, ThumbsUp, ThumbsDown, RotateCcw, Star } from 'lucide-react';
+import { X, User, MessageSquare, Send, CheckCircle, Printer, FileText, ChevronDown, AlertTriangle, AlertCircle, TrendingUp, Trash2, Lock, UserCheck, UserPlus, Clock, Phone, RotateCcw, Star } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import HandleTimeline from './HandleTimeline';
 import PrintReceipt from './PrintReceipt';
-import type { Complaint, HandleFormData, AssignmentFormData, HandlerUser, VisitBackFormData, VisitBackRecord } from '@/types/complaint';
+import type { Complaint, HandleFormData, AssignmentFormData, HandlerUser, VisitBackFormData } from '@/types/complaint';
 import { STATUS_OPTIONS, COMPLAINT_TYPES, VISIT_BACK_STATUS_OPTIONS, SATISFACTION_OPTIONS, UNSATISFIED_REASONS } from '@/types/complaint';
 import { getCurrentDateTime, formatDateInput, formatDateTime } from '@/utils/helpers';
 import { calculateOverdueInfo, formatHours } from '@/utils/overdue';
@@ -43,7 +43,6 @@ export default function DetailModal({ complaint, onClose, onHandle, onEscalate, 
   const escalateDisabledReason = getDisabledReason(currentRole, 'escalate_complaint');
   const deleteDisabledReason = getDisabledReason(currentRole, 'delete_complaint');
   const printDisabledReason = getDisabledReason(currentRole, 'print_receipt');
-  const visitBackDisabledReason = getDisabledReason(currentRole, 'manage_visit_back');
 
   const [showPrint, setShowPrint] = useState(false);
   const [handleData, setHandleData] = useState<HandleFormData>({

@@ -406,7 +406,7 @@ export default function Home() {
         let updatedStatus = c.status;
         let updatedHandleRecords = c.handleRecords;
         let updatedHandleOpinion = c.handleOpinion;
-        let updatedReplyTime = c.replyTime;
+        const updatedReplyTime = c.replyTime;
 
         if (data.reopenCase) {
           updatedStatus = 'processing';
@@ -445,7 +445,7 @@ export default function Home() {
       let updatedStatus = prev.status;
       let updatedHandleRecords = prev.handleRecords;
       let updatedHandleOpinion = prev.handleOpinion;
-      let updatedReplyTime = prev.replyTime;
+      const updatedReplyTime = prev.replyTime;
 
       if (data.reopenCase) {
         updatedStatus = 'processing';
