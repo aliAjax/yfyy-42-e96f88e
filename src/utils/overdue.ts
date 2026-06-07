@@ -1,5 +1,5 @@
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
-import type { Complaint, TimeLimitRule, OverdueInfo, OverdueLevel, WorkTimeRule, WorkDayConfig, HolidayItem, DayOfWeek } from '@/types/complaint';
+import type { Complaint, TimeLimitRule, OverdueInfo, OverdueLevel, WorkTimeRule, WorkDayConfig, HolidayItem, DayOfWeek, WorkTimeSlot } from '@/types/complaint';
 import { formatDateTime } from './helpers';
 
 const STORAGE_KEY = 'time_limit_rules';
@@ -263,15 +263,39 @@ function isWorkDay(date: Date, workDays: WorkDayConfig[], holidays: HolidayItem[
   return workDay?.enabled || false;
 }
 
+function isValidSlot(slot: WorkTimeSlot): boolean {
+  if (!slot.startTime || !slot.endTime) return false;
+  const start = parseTime(slot.startTime);
+  const end = parseTime(slot.endTime);
+  const startMinutes = start.hours * 60 + start.minutes;
+  const endMinutes = end.hours * 60 + end.minutes;
+  return endMinutes > startMinutes;
+}
+
+function getValidSlots(workDay: WorkDayConfig): WorkTimeSlot[] {
+  return workDay.slots.filter(isValidSlot);
+}
+
+function hasAnyWorkDay(workDays: WorkDayConfig[]): boolean {
+  return workDays.some((d) => d.enabled && getValidSlots(d).length > 0);
+}
+
+function isWorkTimeRuleValid(rule: WorkTimeRule): boolean {
+  if (!rule.enabled) return true;
+  return hasAnyWorkDay(rule.workDays);
+}
+
 function parseTime(timeStr: string): { hours: number; minutes: number } {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return { hours, minutes };
 }
 
 function getDayWorkSeconds(workDay: WorkDayConfig): number {
-  if (!workDay.enabled || workDay.slots.length === 0) return 0;
+  if (!workDay.enabled) return 0;
+  const validSlots = getValidSlots(workDay);
+  if (validSlots.length === 0) return 0;
   let totalSeconds = 0;
-  for (const slot of workDay.slots) {
+  for (const slot of validSlots) {
     const start = parseTime(slot.startTime);
     const end = parseTime(slot.endTime);
     const startMinutes = start.hours * 60 + start.minutes;
@@ -286,10 +310,12 @@ function getSecondsSinceMidnight(date: Date): number {
 }
 
 function getWorkSecondsPassedInDay(date: Date, workDay: WorkDayConfig): number {
-  if (!workDay.enabled || workDay.slots.length === 0) return 0;
+  if (!workDay.enabled) return 0;
+  const validSlots = getValidSlots(workDay);
+  if (validSlots.length === 0) return 0;
   const currentSeconds = getSecondsSinceMidnight(date);
   let passedSeconds = 0;
-  for (const slot of workDay.slots) {
+  for (const slot of validSlots) {
     const start = parseTime(slot.startTime);
     const end = parseTime(slot.endTime);
     const startSeconds = start.hours * 3600 + start.minutes * 60;
@@ -304,10 +330,12 @@ function getWorkSecondsPassedInDay(date: Date, workDay: WorkDayConfig): number {
 }
 
 function getWorkSecondsRemainingInDay(date: Date, workDay: WorkDayConfig): number {
-  if (!workDay.enabled || workDay.slots.length === 0) return 0;
+  if (!workDay.enabled) return 0;
+  const validSlots = getValidSlots(workDay);
+  if (validSlots.length === 0) return 0;
   const currentSeconds = getSecondsSinceMidnight(date);
   let remainingSeconds = 0;
-  for (const slot of workDay.slots) {
+  for (const slot of validSlots) {
     const start = parseTime(slot.startTime);
     const end = parseTime(slot.endTime);
     const startSeconds = start.hours * 3600 + start.minutes * 60;
@@ -321,20 +349,27 @@ function getWorkSecondsRemainingInDay(date: Date, workDay: WorkDayConfig): numbe
   return remainingSeconds;
 }
 
+const MAX_ITERATION_DAYS = 365 * 10;
+
 export function addWorkHours(startDate: Date, workHours: number, workTimeRule: WorkTimeRule): Date {
   const { workDays, holidays } = workTimeRule;
   let remainingSeconds = workHours * 3600;
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
+
+  if (!isWorkTimeRuleValid(workTimeRule) || workHours <= 0) {
+    return new Date(startDate);
+  }
 
   const dayOfWeek = currentDate.getDay() as DayOfWeek;
   const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
+  const validSlots = workDay ? getValidSlots(workDay) : [];
 
-  if (isWorkDay(currentDate, workDays, holidays) && workDay) {
+  if (isWorkDay(currentDate, workDays, holidays) && workDay && validSlots.length > 0) {
     const remainingInDay = getWorkSecondsRemainingInDay(currentDate, workDay);
     if (remainingSeconds <= remainingInDay) {
       let secsToAdd = remainingSeconds;
       const currentSeconds = getSecondsSinceMidnight(currentDate);
-      for (const slot of workDay.slots) {
+      for (const slot of validSlots) {
         const start = parseTime(slot.startTime);
         const end = parseTime(slot.endTime);
         const startSeconds = start.hours * 3600 + start.minutes * 60;
@@ -359,15 +394,18 @@ export function addWorkHours(startDate: Date, workHours: number, workTimeRule: W
   currentDate.setHours(0, 0, 0, 0);
   currentDate.setDate(currentDate.getDate() + 1);
 
-  while (remainingSeconds > 0) {
+  let iterations = 0;
+  while (remainingSeconds > 0 && iterations < MAX_ITERATION_DAYS) {
+    iterations++;
     const dayOfWeek = currentDate.getDay() as DayOfWeek;
     const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
+    const validSlots = workDay ? getValidSlots(workDay) : [];
 
-    if (isWorkDay(currentDate, workDays, holidays) && workDay) {
+    if (isWorkDay(currentDate, workDays, holidays) && workDay && validSlots.length > 0) {
       const dayWorkSeconds = getDayWorkSeconds(workDay);
       if (remainingSeconds <= dayWorkSeconds) {
         let secsToAdd = remainingSeconds;
-        for (const slot of workDay.slots) {
+        for (const slot of validSlots) {
           const start = parseTime(slot.startTime);
           const end = parseTime(slot.endTime);
           const startSeconds = start.hours * 3600 + start.minutes * 60;
@@ -394,6 +432,7 @@ export function addWorkHours(startDate: Date, workHours: number, workTimeRule: W
 export function calculateWorkHoursBetween(startDate: Date, endDate: Date, workTimeRule: WorkTimeRule): number {
   const { workDays, holidays } = workTimeRule;
   if (endDate <= startDate) return 0;
+  if (!isWorkTimeRuleValid(workTimeRule)) return 0;
 
   let totalSeconds = 0;
   const start = new Date(startDate);
@@ -424,7 +463,9 @@ export function calculateWorkHoursBetween(startDate: Date, endDate: Date, workTi
   const endDay = new Date(end);
   endDay.setHours(0, 0, 0, 0);
 
-  while (current < endDay) {
+  let iterations = 0;
+  while (current < endDay && iterations < MAX_ITERATION_DAYS) {
+    iterations++;
     const dayOfWeek = current.getDay() as DayOfWeek;
     const workDay = workDays.find((d) => d.dayOfWeek === dayOfWeek);
     if (isWorkDay(current, workDays, holidays) && workDay) {

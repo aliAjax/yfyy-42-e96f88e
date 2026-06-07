@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, RotateCcw, Clock, AlertTriangle, Calendar, Settings, Plus, Trash2 } from 'lucide-react';
 import { COMPLAINT_TYPES, SOURCE_CHANNELS } from '@/types/complaint';
-import type { TimeLimitRule, WorkTimeRule, WorkDayConfig, HolidayItem, DayOfWeek } from '@/types/complaint';
+import type { TimeLimitRule, WorkTimeRule, HolidayItem, DayOfWeek } from '@/types/complaint';
 import { getTimeLimitRules, saveTimeLimitRules, getDefaultTimeLimitHours, getDefaultWarningHours, getWorkTimeRule, saveWorkTimeRule } from '@/utils/overdue';
 
 interface TimeLimitRuleManageModalProps {
@@ -202,6 +202,24 @@ export default function TimeLimitRuleManageModal({ onClose, onSave }: TimeLimitR
     ? [...workTimeRule.holidays].sort((a, b) => a.date.localeCompare(b.date))
     : [];
 
+  function isValidWorkTimeSlot(slot: { startTime: string; endTime: string }): boolean {
+    if (!slot.startTime || !slot.endTime) return false;
+    const [startH, startM] = slot.startTime.split(':').map(Number);
+    const [endH, endM] = slot.endTime.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    return endMinutes > startMinutes;
+  }
+
+  function hasValidWorkDay(rule: WorkTimeRule): boolean {
+    return rule.workDays.some(
+      (d) => d.enabled && d.slots.some(isValidWorkTimeSlot)
+    );
+  }
+
+  const workTimeIsValid = workTimeRule ? hasValidWorkDay(workTimeRule) : false;
+  const showWorkTimeWarning = workTimeRule?.enabled && !workTimeIsValid;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
@@ -364,6 +382,20 @@ export default function TimeLimitRuleManageModal({ onClose, onSave }: TimeLimitR
                 </div>
               </div>
 
+              {showWorkTimeWarning && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-red-800">
+                      <p className="font-medium">配置无效</p>
+                      <p className="mt-1 text-red-700 opacity-90">
+                        工作时间功能已启用，但没有配置任何有效的工作日时段。请至少启用一个工作日并配置有效的工作时段，否则工作时间计算将不会生效。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
                 <h4 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                   <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
@@ -403,35 +435,45 @@ export default function TimeLimitRuleManageModal({ onClose, onSave }: TimeLimitR
                       </div>
                       {workDay.enabled && workDay.slots.length > 0 && (
                         <div className="space-y-2 pl-6">
-                          {workDay.slots.map((slot, slotIndex) => (
-                            <div key={slotIndex} className="flex items-center gap-2">
-                              <input
-                                type="time"
-                                value={slot.startTime}
-                                onChange={(e) =>
-                                  handleSlotTimeChange(workDay.dayOfWeek, slotIndex, 'startTime', e.target.value)
-                                }
-                                className="px-2 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                              />
-                              <span className="text-slate-400 text-xs">至</span>
-                              <input
-                                type="time"
-                                value={slot.endTime}
-                                onChange={(e) =>
-                                  handleSlotTimeChange(workDay.dayOfWeek, slotIndex, 'endTime', e.target.value)
-                                }
-                                className="px-2 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                              />
-                              {workDay.slots.length > 1 && (
-                                <button
-                                  onClick={() => handleRemoveSlot(workDay.dayOfWeek, slotIndex)}
-                                  className="text-red-400 hover:text-red-600 p-1"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                          {workDay.slots.map((slot, slotIndex) => {
+                            const slotValid = isValidWorkTimeSlot(slot);
+                            return (
+                              <div key={slotIndex} className="flex items-center gap-2">
+                                <input
+                                  type="time"
+                                  value={slot.startTime}
+                                  onChange={(e) =>
+                                    handleSlotTimeChange(workDay.dayOfWeek, slotIndex, 'startTime', e.target.value)
+                                  }
+                                  className={`px-2 py-1 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                    slotValid ? 'border-slate-300' : 'border-red-400 bg-red-50'
+                                  }`}
+                                />
+                                <span className="text-slate-400 text-xs">至</span>
+                                <input
+                                  type="time"
+                                  value={slot.endTime}
+                                  onChange={(e) =>
+                                    handleSlotTimeChange(workDay.dayOfWeek, slotIndex, 'endTime', e.target.value)
+                                  }
+                                  className={`px-2 py-1 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                    slotValid ? 'border-slate-300' : 'border-red-400 bg-red-50'
+                                  }`}
+                                />
+                                {!slotValid && (
+                                  <span className="text-xs text-red-500 flex-shrink-0">无效</span>
+                                )}
+                                {workDay.slots.length > 1 && (
+                                  <button
+                                    onClick={() => handleRemoveSlot(workDay.dayOfWeek, slotIndex)}
+                                    className="text-red-400 hover:text-red-600 p-1"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {workDay.enabled && workDay.slots.length === 0 && (
